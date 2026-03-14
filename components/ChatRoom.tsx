@@ -418,93 +418,101 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
   useEffect(() => {
     const alias = aliasRef.current;
     const key = keyRef.current;
+    let intentionalClose = false;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let decoyTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const ws = createSocket(roomId);
-    ws.binaryType = "arraybuffer";
-    wsRef.current = ws;
+    function connect() {
+      const ws = createSocket(roomId);
+      ws.binaryType = "arraybuffer";
+      wsRef.current = ws;
 
-    ws.addEventListener("open", () => {
-      wsSendJSON(ws, { type: "identify", token: sessionTokenRef.current });
-      setConnected(true);
-      setError(null);
-    });
-    ws.addEventListener("close", () => { setConnected(false); });
+      ws.addEventListener("open", () => {
+        wsSendJSON(ws, { type: "identify", token: sessionTokenRef.current });
+        setConnected(true);
+        setError(null);
+        scheduleDecoy(ws);
+      });
 
-    ws.addEventListener("message", (event: MessageEvent | Event) => {
-      let data: ServerEvent;
-      if (!("data" in event)) return;
-      const raw = event.data;
-      // Decode binary frames (ArrayBuffer) or text
-      const str = raw instanceof ArrayBuffer
-        ? new TextDecoder().decode(raw)
-        : typeof raw === "string" ? raw : null;
-      if (!str) return;
-      try { data = JSON.parse(str); } catch { return; }
-
-      if (data.type === "presence") {
-        setOthersHere(data.othersHere);
-      } else if (data.type === "error") {
-        if (data.code === "RATE_LIMITED") {
-          setError(t("slow_down"));
-          setTimeout(() => setError(null), 2000);
-        } else if (data.code === "ROOM_FULL") {
-          setError(t("room_full"));
+      ws.addEventListener("close", () => {
+        setConnected(false);
+        if (!intentionalClose) {
+          // Reconnect after a short delay
+          reconnectTimer = setTimeout(connect, 1500);
         }
-      } else if (data.type === "deleted") {
-        setMessages((prev) => prev.filter((m) => !data.ids.includes(m.id)));
-      } else if (data.type === "burn") {
-        setDeadDropAcked(true);
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === data.id ? { ...m, burnAt: data.burnAt } : m
-          )
-        );
-      } else if (data.type === "history") {
-        const dec: ChatMessage[] = [];
-        for (const msg of data.messages) {
-          if (seenRef.current.has(msg.id)) continue;
-          const env = decrypt(msg.payload, key);
+      });
+
+      ws.addEventListener("message", (event: MessageEvent | Event) => {
+        let data: ServerEvent;
+        if (!("data" in event)) return;
+        const raw = event.data;
+        const str = raw instanceof ArrayBuffer
+          ? new TextDecoder().decode(raw)
+          : typeof raw === "string" ? raw : null;
+        if (!str) return;
+        try { data = JSON.parse(str); } catch { return; }
+
+        if (data.type === "presence") {
+          setOthersHere(data.othersHere);
+        } else if (data.type === "error") {
+          if (data.code === "RATE_LIMITED") {
+            setError(t("slow_down"));
+            setTimeout(() => setError(null), 2000);
+          } else if (data.code === "ROOM_FULL") {
+            setError(t("room_full"));
+          }
+        } else if (data.type === "deleted") {
+          setMessages((prev) => prev.filter((m) => !data.ids.includes(m.id)));
+        } else if (data.type === "burn") {
+          setDeadDropAcked(true);
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === data.id ? { ...m, burnAt: data.burnAt } : m
+            )
+          );
+        } else if (data.type === "history") {
+          const dec: ChatMessage[] = [];
+          for (const msg of data.messages) {
+            if (seenRef.current.has(msg.id)) continue;
+            const env = decrypt(msg.payload, key);
+            if (env) {
+              seenRef.current.add(msg.id);
+              dec.push({
+                id: msg.id,
+                alias: env.alias,
+                text: env.text,
+                ts: env.ts,
+                mine: env.alias === alias,
+                burnAt: msg.burnAt,
+                expiresAt: msg.expiresAt,
+              });
+            }
+          }
+          if (dec.length) setMessages((prev) => [...prev, ...dec]);
+          setHistoryLoaded(true);
+        } else if (data.type === "message") {
+          if (seenRef.current.has(data.id)) return;
+          const env = decrypt(data.payload, key);
           if (env) {
-            seenRef.current.add(msg.id);
-            dec.push({
-              id: msg.id,
+            seenRef.current.add(data.id);
+            setMessages((prev) => [...prev, {
+              id: data.id,
               alias: env.alias,
               text: env.text,
               ts: env.ts,
               mine: env.alias === alias,
-              burnAt: msg.burnAt,
-              expiresAt: msg.expiresAt,
-            });
+              burnAt: null,
+              expiresAt: data.expiresAt,
+            }]);
           }
         }
-        if (dec.length) setMessages((prev) => [...prev, ...dec]);
-        setHistoryLoaded(true);
-      } else if (data.type === "message") {
-        if (seenRef.current.has(data.id)) return;
-        const env = decrypt(data.payload, key);
-        if (env) {
-          seenRef.current.add(data.id);
-          setMessages((prev) => [...prev, {
-            id: data.id,
-            alias: env.alias,
-            text: env.text,
-            ts: env.ts,
-            mine: env.alias === alias,
-            burnAt: null,
-            expiresAt: data.expiresAt,
-          }]);
-        }
-      }
-    });
+      });
+    }
 
-    // --- Decoy traffic ---
-    // Send encrypted no-op messages at random intervals to mask
-    // when real communication happens. Server relays but does not
-    // store decoys, preserving dead-drop TTL and buffer integrity.
-    // Recipients decrypt and discard via the nop flag.
-    const scheduleDecoy = () => {
+    function scheduleDecoy(ws: WebSocket) {
+      if (decoyTimer) clearTimeout(decoyTimer);
       const delay = 10000 + Math.floor(Math.random() * 50000); // 10–60s
-      return setTimeout(() => {
+      decoyTimer = setTimeout(() => {
         if (ws.readyState === WebSocket.OPEN) {
           const decoy: MessageEnvelope = {
             alias: aliasRef.current,
@@ -515,12 +523,34 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
           const payload = encrypt(decoy, keyRef.current);
           wsSendJSON(ws, { type: "decoy", payload });
         }
-        decoyTimer = scheduleDecoy();
+        if (wsRef.current === ws && ws.readyState === WebSocket.OPEN) {
+          scheduleDecoy(ws);
+        }
       }, delay);
-    };
-    let decoyTimer = scheduleDecoy();
+    }
 
-    return () => { clearTimeout(decoyTimer); ws.close(); seenRef.current.clear(); };
+    // Reconnect immediately when the tab becomes visible again
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        const ws = wsRef.current;
+        if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+          if (reconnectTimer) clearTimeout(reconnectTimer);
+          connect();
+        }
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
+    connect();
+
+    return () => {
+      intentionalClose = true;
+      document.removeEventListener("visibilitychange", onVisibility);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (decoyTimer) clearTimeout(decoyTimer);
+      wsRef.current?.close();
+      seenRef.current.clear();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
 
