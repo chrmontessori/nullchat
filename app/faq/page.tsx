@@ -34,7 +34,7 @@ Every message you send is encrypted with NaCl secretbox (XSalsa20-Poly1305) usin
   {
     title: "What does the server see?",
     body: `The server sees:
-• A SHA-256 hash (the room ID) — not your password
+• An Argon2id-derived hash (the room ID) — not your password
 • Encrypted ciphertext blobs — not your messages
 • The number of active connections in a room
 • Timestamps of when encrypted blobs were received
@@ -140,7 +140,9 @@ On the Tor hidden service (.onion), your IP address is never visible to the serv
   },
   {
     title: "What is the safety number?",
-    body: `The safety number is a short code (like "4A 7F 2B 91 C3") displayed in the chat header. It is derived from your encryption key — if you and your contact both tap the masked dots in the header bar and see the same code, you can be confident you're in the same room with the same key.
+    body: `The safety number is a short code (like "4A 7F 2B 91 C3") displayed in the chat header. It is derived from your encryption key combined with a server-generated room nonce — if you and your contact both tap the masked dots in the header bar and see the same code, you can be confident you're in the same room with the same key.
+
+The safety number changes each time a room is created. If a room dies and you re-enter with the same secret, you'll get a new safety number. This prevents stale reuse and ensures the code reflects your current session, not a previous one.
 
 If the numbers don't match, something is wrong — you may have entered different secrets, or in a worst case, someone could be intercepting the connection. The safety number is a quick way to verify your session without revealing your shared secret.`,
   },
@@ -162,7 +164,7 @@ Decoy traffic defeats traffic analysis. Without it, an observer monitoring netwo
   },
   {
     title: "What is the panic key?",
-    body: `Triple-tapping the Escape key instantly wipes your session. When triggered, nullchat sends a terminate command to the server (deleting all your messages), closes the WebSocket connection, clears the DOM, wipes sessionStorage and localStorage, clears the clipboard, and redirects your browser to google.com. The entire process takes less than a second. Use this if you need to immediately erase all evidence of the conversation from your screen and browser.`,
+    body: `Triple-tapping the Escape key instantly wipes your session. When triggered, nullchat sends a terminate command to the server (deleting all your messages), closes the WebSocket connection, zeroes out the encryption key in memory, clears the DOM, wipes sessionStorage and localStorage, clears the clipboard, and redirects your browser to google.com. The entire process takes less than a second. If the browser attempts to restore the page from cache (e.g., via the back button), the wipe is automatically re-triggered. Use this if you need to immediately erase all evidence of the conversation from your screen and browser.`,
   },
   {
     title: "What is steganographic mode?",
@@ -172,7 +174,7 @@ This is useful if someone is looking over your shoulder or if your screen is vis
   },
   {
     title: "Does nullchat auto-clear the clipboard?",
-    body: `Yes. If anything is copied while you are in a chat room, nullchat automatically clears your clipboard after 30 seconds. This prevents message content from lingering in your clipboard after you've left the conversation. The clipboard is also wiped immediately if you use the panic key.`,
+    body: `Yes. If anything is copied while you are in a chat room, nullchat automatically clears your clipboard after 15 seconds. The clipboard is also wiped when you close the tab or navigate away, and immediately if you use the panic key. This prevents message content from lingering in your clipboard after you've left the conversation.`,
   },
   {
     title: "Can you read my messages?",

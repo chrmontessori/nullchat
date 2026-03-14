@@ -16,7 +16,7 @@ The shared secret derives both the room ID and the encryption key using Argon2id
 ## What the server sees
 
 - Encrypted ciphertext blobs — not your messages
-- A SHA-256 room hash — not your password
+- An Argon2id-derived room hash — not your password
 - Connection count per room
 - Timestamps of encrypted blobs
 
@@ -114,6 +114,11 @@ The production server runs with:
 - Core dumps disabled system-wide
 - Scheduled 6-hour restarts to clear accumulated in-memory state
 - Connection padding (random-length dummy frames at random intervals defeat traffic analysis)
+- WebSocket compression disabled (prevents CRIME-style compression side-channel attacks)
+- WebSocket upgrade rate limiting (5 connections/min per IP)
+- Delayed presence broadcasts (random 5–15s jitter defeats join/leave timing correlation)
+- Encryption key zeroed on leave, terminate, and panic
+- Clipboard auto-cleared on tab close and after 15 seconds of copy
 - Dedicated unprivileged service user
 - Systemd sandboxing (seccomp, no new privileges, restricted syscalls, private /tmp)
 - Kernel hardening (no ping, no source routing, SYN flood protection)
