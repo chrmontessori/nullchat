@@ -1,0 +1,117 @@
+# nullchat
+
+Anonymous, end-to-end encrypted, ephemeral chat rooms. No accounts. No logs. No metadata.
+
+**Clearnet:** [nullchat.org](https://www.nullchat.org)
+**Tor:** `http://5ril7wg5rvrpc25l2vjkwufmum26gwzrk5hf2mvfjkdrsyj3p54a52yd.onion`
+
+## How it works
+
+1. Two people agree on a shared secret (a password) through a secure channel
+2. Both enter the secret into nullchat
+3. They land in the same encrypted room — no sign-up, no identity, no trace
+
+The shared secret derives both the room ID (SHA-256 hash) and the encryption key (PBKDF2, 100k iterations). Messages are encrypted client-side with NaCl secretbox (XSalsa20-Poly1305) before leaving the browser. The server only sees encrypted blobs.
+
+## What the server sees
+
+- Encrypted ciphertext blobs — not your messages
+- A SHA-256 room hash — not your password
+- Connection count per room
+- Timestamps of encrypted blobs
+
+## What the server cannot see
+
+- Your shared secret
+- Your message content
+- Your alias (encrypted inside messages)
+- Your IP address (stripped at the infrastructure level)
+
+## Message lifecycle
+
+- **Dead drop:** First message waits up to 24 hours for a response
+- **Active:** Once both users are present, messages burn in 5 minutes
+- **Hard ceiling:** Unread messages auto-delete after their TTL expires
+- **No archive, no backup, no recovery**
+
+## Architecture
+
+nullchat runs two frontends against a single WebSocket backend:
+
+| | Clearnet | Tor |
+|---|---|---|
+| Frontend | Vercel (Next.js SSR) | Static export served by Node.js |
+| WebSocket | `wss://ws.nullchat.org` | `ws://<onion>` (same origin) |
+| Encryption | Client-side NaCl secretbox | Same |
+| Backend | Shared standalone server | Same |
+
+Both Tor and clearnet users connect to the same backend — same rooms, same messages.
+
+## Stack
+
+- **Frontend:** Next.js 16, React 19, Tailwind CSS 4
+- **Encryption:** TweetNaCl (XSalsa20-Poly1305), PBKDF2 (SHA-256, 100k iterations)
+- **Server:** Node.js, `ws` library
+- **Infrastructure:** Tor hidden service, nginx (TLS 1.2+), Let's Encrypt
+
+## Self-hosting
+
+### Clearnet
+
+```bash
+npm install
+npm run build
+npm start
+```
+
+### Tor (standalone server)
+
+```bash
+npm install
+npm run build:tor    # static export + compile server
+npm run start:tor    # starts on 127.0.0.1:3000
+```
+
+Configure Tor to route to localhost:
+
+```
+HiddenServiceDir /var/lib/tor/nullchat/
+HiddenServicePort 80 127.0.0.1:3000
+```
+
+Your `.onion` address appears in `/var/lib/tor/nullchat/hostname`.
+
+## Server hardening
+
+The production server runs with:
+
+- Zero logging (nginx, Tor, Node.js, journald — all disabled)
+- Firewall (ports 22, 80, 443 only)
+- TLS 1.2+ with strong cipher suite
+- IP headers stripped at nginx
+- Gzip disabled (prevents BREACH attacks)
+- Read-only application filesystem
+- Dedicated unprivileged service user
+- Systemd sandboxing (seccomp, no new privileges, restricted syscalls, private /tmp)
+- Kernel hardening (no ping, no source routing, SYN flood protection)
+- SRI hashes on all static assets
+- Automatic security updates
+
+## Security model
+
+The encryption is solid. The weak link in any web-based E2E tool is the delivery mechanism — the server could theoretically serve modified JavaScript that exfiltrates keys. This is true of every web app doing client-side encryption (Signal Web, WhatsApp Web, etc.).
+
+Mitigations in place:
+- Code is open source for public audit
+- SRI hashes verify asset integrity at load time
+- Application filesystem is read-only
+
+The best protection is to verify the code yourself.
+
+## License
+
+MIT
+
+---
+
+Built by [Artorias](https://artorias.com)
