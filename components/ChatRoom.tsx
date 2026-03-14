@@ -275,10 +275,10 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
     let tapTimer: ReturnType<typeof setTimeout> | null = null;
     const onStego = (e: KeyboardEvent) => {
       if (e.key !== "Tab") return;
-      e.preventDefault(); // prevent focus shift
       tapCount++;
       if (tapTimer) clearTimeout(tapTimer);
       if (tapCount >= 3) {
+        e.preventDefault();
         tapCount = 0;
         setStegoMode((v) => !v);
         return;
@@ -308,13 +308,15 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
 
   const hasScrolled = useRef(false);
   const scrollDown = useCallback(() => {
+    // Don't auto-scroll in stego mode — a document editor doesn't jump around
+    if (stegoMode) return;
     if (!hasScrolled.current) {
       bottomRef.current?.scrollIntoView({ behavior: "instant" });
       hasScrolled.current = true;
     } else {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }
-  }, []);
+  }, [stegoMode]);
 
   useEffect(() => { scrollDown(); }, [messages, scrollDown]);
 
@@ -584,13 +586,13 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
             {/* Input disguised as cursor / active typing area */}
             <div style={{ position: "relative" }}>
               <input
+                ref={(el) => { if (el) el.focus(); }}
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
                 placeholder=""
                 maxLength={MAX_MESSAGE_LENGTH}
-                autoFocus
                 autoComplete="off"
                 spellCheck={false}
                 style={{
