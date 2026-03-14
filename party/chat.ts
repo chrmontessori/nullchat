@@ -171,10 +171,13 @@ export default class ChatRoom implements Party.Server {
     this.broadcastPresence();
   }
 
-  async onMessage(message: string, sender: Party.Connection) {
+  async onMessage(message: string | ArrayBuffer, sender: Party.Connection) {
+    const str = message instanceof ArrayBuffer
+      ? new TextDecoder().decode(message)
+      : typeof message === "string" ? message : String(message);
     let parsed: { type: string; payload?: string; ids?: string[]; token?: string };
     try {
-      parsed = JSON.parse(message as string);
+      parsed = JSON.parse(str);
     } catch {
       return;
     }
