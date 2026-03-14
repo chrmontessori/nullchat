@@ -25,9 +25,9 @@ The strength indicator on the entry screen gives you a rough sense of how resist
     title: "How does the encryption work?",
     body: `When you enter your shared secret, two things happen entirely in your browser:
 
-1. The secret is hashed using SHA-256 to produce a room ID. This hash is sent to the server so it knows which room to connect you to. The server never sees your actual secret.
+1. The secret is processed through Argon2id — a memory-hard key derivation function — using a domain-separated salt to produce a room ID. This hash is sent to the server so it knows which room to connect you to. The server never sees your actual secret.
 
-2. The secret is run through PBKDF2 (100,000 iterations) to derive a 256-bit encryption key. This key never leaves your browser.
+2. The secret is run through a second, independent Argon2id derivation (64 MiB memory, 3 iterations) to produce a 256-bit encryption key. This key never leaves your browser. Argon2id requires large blocks of RAM per guess, making GPU and ASIC brute-force attacks on your password orders of magnitude harder than traditional KDFs.
 
 Every message you send is encrypted with NaCl secretbox (XSalsa20-Poly1305) using that key before it leaves your device. The server receives, stores, and relays only ciphertext — encrypted blobs that are meaningless without the key. We cannot read your messages. No one can, unless they know the shared secret.`,
   },
@@ -47,7 +47,7 @@ The server does NOT see:
   },
   {
     title: "What is message padding?",
-    body: `Before encryption, every message is padded to a fixed block size (256 bytes). This means a short message like "hi" produces the same size ciphertext as a message like "meet me at the park." Without padding, an observer could guess message content based on ciphertext length. Padding eliminates this side channel.`,
+    body: `Before encryption, every message is padded to a fixed 8,192-byte block using a 2-byte length prefix followed by the message content and random noise. This means a short message like "hi" produces the exact same size ciphertext as a message at the maximum length. Without padding, an observer could guess message content based on ciphertext length. The random noise fill (not zeros) ensures there is no distinguishable pattern in the plaintext before encryption. Padding eliminates this side channel entirely.`,
   },
   {
     title: "What is timestamp obfuscation?",
@@ -103,7 +103,22 @@ The sender can safely reconnect at any time to check whether their message is st
   },
   {
     title: "Can I access nullchat over Tor?",
-    body: <>nullchat is available as a Tor hidden service for users in censored regions or anyone who wants an additional layer of anonymity. Open Tor Browser and navigate to:<br /><br /><span style={{ fontFamily: "monospace", fontSize: 13, color: "#3478f6", wordBreak: "break-all" }}>http://5ril7wg5rvrpc25l2vjkwufmum26gwzrk5hf2mvfjkdrsyj3p54a52yd.onion</span><br /><br />Both the clearnet and Tor versions connect to the same backend — users on either can communicate with each other in the same rooms using the same shared secret. The .onion service routes through Tor's network with no Cloudflare, no CDN, and no third-party infrastructure between you and the server. Tor routes your connection through multiple encrypted relays, so neither the server nor any observer can determine your real IP address or location. The .onion service uses plain HTTP, which is expected and safe — Tor itself provides end-to-end encryption between your browser and the server. All the same application-level encryption (NaCl secretbox, PBKDF2 key derivation) applies on top of that. Note: Tor Browser must be set to "Standard" security level for nullchat to function, as the app requires JavaScript.</>,
+    body: <>nullchat is available as a Tor hidden service for users in censored regions or anyone who wants an additional layer of anonymity. Open Tor Browser and navigate to:<br /><br /><span style={{ fontFamily: "monospace", fontSize: 13, color: "#3478f6", wordBreak: "break-all" }}>http://5ril7wg5rvrpc25l2vjkwufmum26gwzrk5hf2mvfjkdrsyj3p54a52yd.onion</span><br /><br />By default, both the clearnet and Tor versions connect to the same backend — users on either can communicate with each other in the same rooms using the same shared secret. The .onion service routes through Tor&#39;s network with no Cloudflare, no CDN, and no third-party infrastructure between you and the server. Tor routes your connection through multiple encrypted relays, so neither the server nor any observer can determine your real IP address or location. The .onion service uses plain HTTP, which is expected and safe — Tor itself provides end-to-end encryption between your browser and the server. All the same application-level encryption (NaCl secretbox, Argon2id key derivation) applies on top of that. Note: Tor Browser must be set to &#34;Standard&#34; security level for nullchat to function, as the app requires JavaScript.</>,
+  },
+  {
+    title: "What is a Tor-only room?",
+    body: `When accessing nullchat through the .onion hidden service, you have the option to enable "Tor-only room" — a toggle that appears on the password entry screen. When enabled, your room is placed in a separate namespace that only other Tor users with the same toggle enabled can access. Clearnet users can never join a Tor-only room, even if they know the shared secret.
+
+This provides a higher level of security than the default shared rooms:
+
+• Both parties are routed through Tor's multi-hop onion network — neither party's real IP address or location is visible to anyone, including the server.
+• No DNS lookups, no CDN, no Cloudflare, and no third-party infrastructure touches the connection at any point.
+• Traffic analysis is significantly harder because both sides benefit from Tor's relay padding combined with nullchat's own connection padding (random dummy frames sent at random intervals).
+• There is no clearnet participant whose weaker connection metadata could be correlated with the conversation.
+
+You are only as anonymous as the weakest link in the conversation. In a default room, a clearnet participant's connection touches DNS resolvers, Cloudflare, and standard internet routing — all of which can be observed or subpoenaed for metadata about who connected, when, and from where. The Tor-only toggle eliminates this risk entirely by ensuring every participant has the same level of network-layer anonymity.
+
+Both parties must agree to enable the toggle — it works the same way as agreeing on the shared secret. The chat header displays "TOR ONLY" in green when active, or "CLEARNET" in red for standard rooms, so you always know which mode you are in.`,
   },
   {
     title: "What is the inactivity timeout?",
@@ -122,6 +137,42 @@ On the Tor hidden service (.onion), your IP address is never visible to the serv
   {
     title: "Why can't I send links, images, or files?",
     body: `By design. nullchat is text-only — no links, images, file attachments, or media of any kind can be sent or rendered. This is a deliberate security decision, not a limitation. Clickable links and embedded media are the primary attack surface for zero-day exploits used by commercial spyware like Pegasus, Predator, and similar surveillance tools. A single malicious link or file can silently compromise an entire device. By stripping the chat down to plaintext only, nullchat eliminates this attack vector entirely. There is nothing to click, nothing to download, and nothing to render — which means nothing to exploit.`,
+  },
+  {
+    title: "What is the safety number?",
+    body: `The safety number is a short code (like "4A 7F 2B 91 C3") displayed in the chat header. It is derived from your encryption key — if you and your contact both tap the masked dots in the header bar and see the same code, you can be confident you're in the same room with the same key.
+
+If the numbers don't match, something is wrong — you may have entered different secrets, or in a worst case, someone could be intercepting the connection. The safety number is a quick way to verify your session without revealing your shared secret.`,
+  },
+  {
+    title: "Can I copy or screenshot messages?",
+    body: `nullchat actively discourages capturing message content. Text selection and copying are disabled in the chat area, right-click context menus are blocked, and common screenshot keyboard shortcuts are intercepted. The browser's Screen Capture API is also blocked via Permissions-Policy headers, preventing web-based screen recording tools from capturing the page.
+
+These are friction-based protections, not absolute guarantees. A determined user can always photograph their screen with another device or use OS-level tools that bypass browser restrictions. The goal is to make casual capture difficult and to reinforce the expectation that conversations in nullchat are not meant to be saved.`,
+  },
+  {
+    title: "What is decoy traffic?",
+    body: `nullchat automatically sends encrypted dummy messages at random intervals (every 10–60 seconds) while you are connected to a room. These decoy messages are indistinguishable from real messages — they are the same size (thanks to fixed padding), encrypted with the same key, and relayed through the same server path. The recipient's client silently discards them after decryption.
+
+Decoy traffic defeats traffic analysis. Without it, an observer monitoring network traffic could determine when real communication is happening based on when encrypted blobs are sent. With decoys, there is a constant stream of identical-looking traffic regardless of whether anyone is actually typing — making it impossible to distinguish real messages from noise.`,
+  },
+  {
+    title: "What is connection padding?",
+    body: `The server sends random-length binary frames (64–512 bytes of random data) to every connected client at random intervals (every 5–30 seconds). These frames are not messages — they are pure noise that the client silently ignores. Combined with client-side decoy traffic, connection padding ensures that network traffic patterns reveal nothing about whether real communication is occurring, how many messages are being exchanged, or when participants are active.`,
+  },
+  {
+    title: "What is the panic key?",
+    body: `Triple-tapping the Escape key instantly wipes your session. When triggered, nullchat sends a terminate command to the server (deleting all your messages), closes the WebSocket connection, clears the DOM, wipes sessionStorage and localStorage, clears the clipboard, and redirects your browser to google.com. The entire process takes less than a second. Use this if you need to immediately erase all evidence of the conversation from your screen and browser.`,
+  },
+  {
+    title: "What is steganographic mode?",
+    body: `Steganographic mode disguises the nullchat interface as a generic note-taking app. When activated via the button in the chat header, the entire UI transforms — the dark chat interface is replaced with a simple "Notes" app appearance. Messages appear as plain notes with timestamps, and the input field reads "Add a note..." instead of "Message." All encryption, burn timers, and security features continue to operate normally underneath.
+
+This is useful if someone is looking over your shoulder or if your screen is visible to others. At a glance, it looks like you're writing notes, not having an encrypted conversation. Tap "Edit" in the top-right corner to return to the normal chat view.`,
+  },
+  {
+    title: "Does nullchat auto-clear the clipboard?",
+    body: `Yes. If anything is copied while you are in a chat room, nullchat automatically clears your clipboard after 30 seconds. This prevents message content from lingering in your clipboard after you've left the conversation. The clipboard is also wiped immediately if you use the panic key.`,
   },
   {
     title: "Can you read my messages?",

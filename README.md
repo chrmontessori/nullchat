@@ -11,7 +11,7 @@ Anonymous, end-to-end encrypted, ephemeral chat rooms. No accounts. No logs. No 
 2. Both enter the secret into nullchat
 3. They land in the same encrypted room — no sign-up, no identity, no trace
 
-The shared secret derives both the room ID (SHA-256 hash) and the encryption key (PBKDF2, 100k iterations). Messages are encrypted client-side with NaCl secretbox (XSalsa20-Poly1305) before leaving the browser. The server only sees encrypted blobs.
+The shared secret derives both the room ID and the encryption key using Argon2id (64 MiB memory-hard KDF, 3 iterations) with domain-separated salts. Messages are encrypted client-side with NaCl secretbox (XSalsa20-Poly1305) before leaving the browser. The server only sees encrypted blobs.
 
 ## What the server sees
 
@@ -50,7 +50,7 @@ Both Tor and clearnet users connect to the same backend — same rooms, same mes
 ## Stack
 
 - **Frontend:** Next.js 16, React 19, Tailwind CSS 4
-- **Encryption:** TweetNaCl (XSalsa20-Poly1305), PBKDF2 (SHA-256, 100k iterations)
+- **Encryption:** TweetNaCl (XSalsa20-Poly1305), Argon2id (64 MiB, 3 iterations)
 - **Server:** Node.js, `ws` library
 - **Infrastructure:** Tor hidden service, nginx (TLS 1.2+), Let's Encrypt
 
@@ -81,6 +81,24 @@ HiddenServicePort 80 127.0.0.1:3000
 
 Your `.onion` address appears in `/var/lib/tor/nullchat/hostname`.
 
+### Production hardening
+
+After deploying to `/opt/nullchat`, run the hardening script as root:
+
+```bash
+bash /opt/nullchat/deploy/harden.sh
+```
+
+This disables swap, creates the service user, installs systemd units (with tmpfs working directory, sandboxing, and 6-hour restart timer), and disables core dumps.
+
+To enable Tor-only mode (reject all non-Tor connections):
+
+```bash
+# Edit /etc/systemd/system/nullchat.service
+# Uncomment: Environment=TOR_ONLY=1
+systemctl daemon-reload && systemctl restart nullchat
+```
+
 ## Server hardening
 
 The production server runs with:
@@ -91,11 +109,17 @@ The production server runs with:
 - IP headers stripped at nginx
 - Gzip disabled (prevents BREACH attacks)
 - Read-only application filesystem
+- Memory-only tmpfs working directory (nothing touches disk)
+- Swap disabled (prevents memory contents leaking to disk)
+- Core dumps disabled system-wide
+- Scheduled 6-hour restarts to clear accumulated in-memory state
+- Connection padding (random-length dummy frames at random intervals defeat traffic analysis)
 - Dedicated unprivileged service user
 - Systemd sandboxing (seccomp, no new privileges, restricted syscalls, private /tmp)
 - Kernel hardening (no ping, no source routing, SYN flood protection)
 - SRI hashes on all static assets
 - Automatic security updates
+- Optional Tor-only mode (`TOR_ONLY=1`) to reject all non-.onion connections
 
 ## Security model
 

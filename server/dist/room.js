@@ -30,14 +30,15 @@ class ChatRoom {
         return [...this.connections.values()];
     }
     broadcast(data) {
+        const buf = Buffer.from(data);
         for (const conn of this.getConnections()) {
             if (conn.ws.readyState === 1)
-                conn.ws.send(data);
+                conn.ws.send(buf);
         }
     }
     send(conn, data) {
         if (conn.ws.readyState === 1)
-            conn.ws.send(data);
+            conn.ws.send(Buffer.from(data));
     }
     getSenderToken(connectionId) {
         return this.connectionTokens.get(connectionId) || connectionId;

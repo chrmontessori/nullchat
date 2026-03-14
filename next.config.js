@@ -12,7 +12,7 @@ const nextConfig = {
             value: [
               "default-src 'self'",
               "connect-src 'self' wss://ws.nullchat.org wss://localhost:* ws://localhost:*",
-              "script-src 'self' 'unsafe-inline'",
+              "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self'",
               "font-src 'self'",
@@ -30,6 +30,14 @@ const nextConfig = {
             value: "camera=(), microphone=(), geolocation=(), browsing-topics=()",
           },
           { key: "X-DNS-Prefetch-Control", value: "off" },
+          {
+            key: "Onion-Location",
+            value: "http://5ril7wg5rvrpc25l2vjkwufmum26gwzrk5hf2mvfjkdrsyj3p54a52yd.onion",
+          },
+          {
+            key: "Alt-Svc",
+            value: 'h2="5ril7wg5rvrpc25l2vjkwufmum26gwzrk5hf2mvfjkdrsyj3p54a52yd.onion:80"; ma=86400',
+          },
         ],
       },
     ];

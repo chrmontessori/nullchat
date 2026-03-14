@@ -1,0 +1,6 @@
+[Unit]
+Description=Restart nullchat to clear in-memory state
+
+[Service]
+Type=oneshot
+ExecStart=/bin/systemctl restart nullchat.service

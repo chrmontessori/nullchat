@@ -45,13 +45,14 @@ export class ChatRoom {
   }
 
   private broadcast(data: string) {
+    const buf = Buffer.from(data);
     for (const conn of this.getConnections()) {
-      if (conn.ws.readyState === 1) conn.ws.send(data);
+      if (conn.ws.readyState === 1) conn.ws.send(buf);
     }
   }
 
   private send(conn: Connection, data: string) {
-    if (conn.ws.readyState === 1) conn.ws.send(data);
+    if (conn.ws.readyState === 1) conn.ws.send(Buffer.from(data));
   }
 
   private getSenderToken(connectionId: string): string {

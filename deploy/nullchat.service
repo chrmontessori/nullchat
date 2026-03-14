@@ -1,0 +1,67 @@
+[Unit]
+Description=nullchat WebSocket server
+After=network.target tor.service
+Wants=tor.service
+
+[Service]
+Type=simple
+User=nullchat
+Group=nullchat
+
+# Application
+WorkingDirectory=/tmp/nullchat-runtime
+ExecStartPre=/bin/mkdir -p /tmp/nullchat-runtime
+ExecStart=/usr/bin/node /opt/nullchat/server/dist/index.js
+Environment=NODE_ENV=production
+Environment=PORT=3000
+
+# To enable Tor-only mode (reject all non-.onion requests):
+# Environment=TOR_ONLY=1
+
+# --- Memory-only tmpfs working directory ---
+# /tmp is already a private tmpfs thanks to PrivateTmp; the working
+# directory lives entirely in RAM — nothing touches disk.
+PrivateTmp=strict
+
+# --- Scheduled restarts to clear accumulated in-memory state ---
+# Restart every 6 hours. The timer (nullchat-restart.timer) triggers
+# this automatically; RuntimeMaxSec is the hard ceiling.
+RuntimeMaxSec=21600
+Restart=always
+RestartSec=2
+
+# --- Sandbox hardening ---
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/opt/nullchat
+TemporaryFileSystem=/tmp:size=64M
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+CapabilityBoundingSet=
+AmbientCapabilities=
+PrivateDevices=true
+PrivateUsers=true
+
+# Prevent core dumps (could leak memory contents to disk)
+LimitCORE=0
+
+# --- Logging ---
+StandardOutput=null
+StandardError=null
+
+[Install]
+WantedBy=multi-user.target

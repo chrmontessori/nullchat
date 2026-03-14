@@ -1,0 +1,12 @@
+[Unit]
+Description=Restart nullchat every 6 hours to clear in-memory state
+
+[Timer]
+# Stagger restart times to avoid predictable patterns
+OnBootSec=6h
+OnUnitActiveSec=6h
+RandomizedDelaySec=300
+AccuracySec=60
+
+[Install]
+WantedBy=timers.target

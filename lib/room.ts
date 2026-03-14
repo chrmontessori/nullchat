@@ -1,32 +1,21 @@
 /**
- * Derive room ID using HKDF-like construction: PBKDF2 with a fixed
- * domain-separation salt so the room ID cannot be used to crack
- * the encryption key (which uses a different salt).
+ * Derive room ID using Argon2id with a fixed domain-separation salt
+ * so the room ID cannot be used to crack the encryption key (which
+ * uses a different salt). Both derivations use Argon2id to ensure
+ * brute-force resistance on both paths.
  */
 export async function deriveRoomId(password: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const keyMaterial = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(password),
-    "PBKDF2",
-    false,
-    ["deriveBits"]
-  );
-  const salt = encoder.encode("nullchat-room-id-v1");
-  const bits = await crypto.subtle.deriveBits(
-    {
-      name: "PBKDF2",
-      salt: salt.buffer as ArrayBuffer,
-      iterations: 100000,
-      hash: "SHA-256",
-    },
-    keyMaterial,
-    256
-  );
-  const hashArray = new Uint8Array(bits);
-  return Array.from(hashArray)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+  const { argon2id } = await import("hash-wasm");
+  const salt = new TextEncoder().encode("nullchat-room-id-v2");
+  return argon2id({
+    password,
+    salt,
+    iterations: 3,
+    memorySize: 65536, // 64 MiB
+    hashLength: 32,
+    parallelism: 1,
+    outputType: "hex",
+  });
 }
 
 export function hexToBytes(hex: string): Uint8Array {

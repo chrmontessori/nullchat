@@ -1,14 +1,23 @@
 import nacl from "tweetnacl";
 import { encodeBase64, decodeBase64 } from "tweetnacl-util";
 
-const BLOCK_SIZE = 256;
-const PBKDF2_ITERATIONS = 100000;
+// Argon2id parameters: memory-hard KDF resistant to GPU/ASIC attacks
+const ARGON2_MEM_KIB = 65536; // 64 MiB
+const ARGON2_TIME = 3; // iterations
+const ARGON2_PARALLELISM = 1;
 
 export interface MessageEnvelope {
   alias: string;
   text: string;
   ts: number;
+  nop?: boolean; // true = decoy traffic, discard after decryption
 }
+
+// Fixed plaintext size before encryption.
+// All messages are padded to exactly this many bytes before secretbox,
+// so every ciphertext is identical length regardless of message content.
+// 8192 bytes covers max message (4096 chars JSON-encoded + envelope overhead).
+const FIXED_PLAINTEXT_SIZE = 8192;
 
 export function generateAlias(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(4));
@@ -22,56 +31,71 @@ export function roundTimestamp(ts: number): number {
 }
 
 /**
- * Derive encryption key using PBKDF2 with a fixed domain-separation
+ * Derive encryption key using Argon2id with a fixed domain-separation
  * salt independent from the room ID, so knowing the room ID does
  * not help an attacker crack the key.
+ *
+ * Argon2id is memory-hard: each guess requires 64 MiB of RAM,
+ * neutralizing GPU/ASIC brute-force attacks on weak passwords.
  */
 export async function deriveKey(password: string): Promise<Uint8Array> {
-  const encoder = new TextEncoder();
-  const keyMaterial = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(password),
-    "PBKDF2",
-    false,
-    ["deriveBits"]
-  );
-  const salt = encoder.encode("nullchat-encryption-key-v1");
-  const bits = await crypto.subtle.deriveBits(
-    {
-      name: "PBKDF2",
-      salt: salt.buffer as ArrayBuffer,
-      iterations: PBKDF2_ITERATIONS,
-      hash: "SHA-256",
-    },
-    keyMaterial,
-    256
-  );
-  return new Uint8Array(bits);
+  const { argon2id } = await import("hash-wasm");
+  const salt = new TextEncoder().encode("nullchat-encryption-key-v2");
+  const hashHex = await argon2id({
+    password,
+    salt,
+    iterations: ARGON2_TIME,
+    memorySize: ARGON2_MEM_KIB,
+    hashLength: 32,
+    parallelism: ARGON2_PARALLELISM,
+    outputType: "hex",
+  });
+  // Convert hex to Uint8Array
+  const bytes = new Uint8Array(32);
+  for (let i = 0; i < 64; i += 2) {
+    bytes[i / 2] = parseInt(hashHex.substring(i, i + 2), 16);
+  }
+  return bytes;
+}
+
+/**
+ * Derive a short safety number from the encryption key for out-of-band
+ * verification. Both users should see the same fingerprint — if they
+ * don't, someone may be in a different room (wrong secret or MITM).
+ */
+export async function deriveFingerprint(key: Uint8Array): Promise<string> {
+  const hash = await crypto.subtle.digest("SHA-256", key.buffer as ArrayBuffer);
+  const bytes = new Uint8Array(hash).slice(0, 5);
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, "0").toUpperCase())
+    .join(" ");
 }
 
 function padMessage(plaintext: string): Uint8Array {
   const encoded = new TextEncoder().encode(plaintext);
-  // Add 1-64 random extra bytes before rounding up to block size
-  // to prevent exact block-boundary length analysis
-  const jitter = (crypto.getRandomValues(new Uint8Array(1))[0] % 64) + 1;
-  const paddedLen =
-    Math.ceil((encoded.length + jitter) / BLOCK_SIZE) * BLOCK_SIZE;
-  const padded = new Uint8Array(paddedLen);
-  padded.set(encoded);
-  const padCount = paddedLen - encoded.length;
-  for (let i = encoded.length; i < paddedLen; i++) {
-    padded[i] = padCount;
+  // 2-byte length prefix + content must fit in fixed size
+  if (encoded.length + 2 > FIXED_PLAINTEXT_SIZE) {
+    throw new Error("Message too large for fixed padding");
   }
+  const padded = new Uint8Array(FIXED_PLAINTEXT_SIZE);
+  // Store content length as 2-byte big-endian prefix
+  padded[0] = (encoded.length >> 8) & 0xff;
+  padded[1] = encoded.length & 0xff;
+  padded.set(encoded, 2);
+  // Fill remaining bytes with random data (not zeros) to prevent
+  // any distinguishable pattern in the plaintext
+  const noise = crypto.getRandomValues(new Uint8Array(FIXED_PLAINTEXT_SIZE - 2 - encoded.length));
+  padded.set(noise, 2 + encoded.length);
   return padded;
 }
 
 function unpadMessage(padded: Uint8Array): string {
-  const padCount = padded[padded.length - 1];
-  if (padCount === 0 || padCount > BLOCK_SIZE) {
+  // Read 2-byte big-endian length prefix
+  const len = (padded[0] << 8) | padded[1];
+  if (len + 2 > padded.length) {
     throw new Error("Invalid padding");
   }
-  const unpaddedLen = padded.length - padCount;
-  return new TextDecoder().decode(padded.slice(0, unpaddedLen));
+  return new TextDecoder().decode(padded.slice(2, 2 + len));
 }
 
 export function encrypt(
@@ -100,7 +124,10 @@ export function decrypt(
     const padded = nacl.secretbox.open(box, nonce, key);
     if (!padded) return null;
     const plaintext = unpadMessage(padded);
-    return JSON.parse(plaintext);
+    const envelope: MessageEnvelope = JSON.parse(plaintext);
+    // Discard decoy/no-op messages
+    if (envelope.nop) return null;
+    return envelope;
   } catch {
     return null;
   }

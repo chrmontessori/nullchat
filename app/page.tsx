@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import PasswordEntry from "@/components/PasswordEntry";
 import ChatRoom from "@/components/ChatRoom";
 import { deriveRoomId } from "@/lib/room";
-import { deriveKey } from "@/lib/crypto";
+import { deriveKey, deriveFingerprint } from "@/lib/crypto";
 
 function ConnectingScreen({ onReady }: { onReady: () => void }) {
   useEffect(() => {
@@ -75,9 +75,11 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const roomIdRef = useRef("");
   const keyRef = useRef<Uint8Array | null>(null);
+  const fingerprintRef = useRef("");
+  const torIsolatedRef = useRef(false);
   const [, setTick] = useState(0);
 
-  const handleSubmit = async (password: string) => {
+  const handleSubmit = async (password: string, torIsolated: boolean) => {
     if (loading) return;
     setLoading(true);
     try {
@@ -85,8 +87,12 @@ export default function Home() {
         deriveRoomId(password),
         deriveKey(password),
       ]);
-      roomIdRef.current = id;
+      // Tor-isolated rooms use a separate namespace so only other
+      // Tor users with the toggle enabled land in the same room
+      roomIdRef.current = torIsolated ? `tor-${id}` : id;
+      torIsolatedRef.current = torIsolated;
       keyRef.current = key;
+      fingerprintRef.current = await deriveFingerprint(key);
       setPhase("connecting");
     } catch (err) {
       console.error("Key derivation failed:", err);
@@ -115,6 +121,8 @@ export default function Home() {
       <ChatRoom
         roomId={roomIdRef.current}
         encryptionKey={keyRef.current}
+        fingerprint={fingerprintRef.current}
+        torIsolated={torIsolatedRef.current}
         onLeave={handleLeave}
       />
     );

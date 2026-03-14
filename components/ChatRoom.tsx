@@ -33,9 +33,16 @@ function createSocket(roomId: string): WebSocket {
   return new WebSocket(`wss://${wsHost}/ws/${roomId}`);
 }
 
+/** Send JSON as a binary WebSocket frame (ArrayBuffer) */
+function wsSendJSON(ws: WebSocket, obj: unknown) {
+  ws.send(new TextEncoder().encode(JSON.stringify(obj)));
+}
+
 interface Props {
   roomId: string;
   encryptionKey: Uint8Array;
+  fingerprint: string;
+  torIsolated: boolean;
   onLeave: () => void;
 }
 
@@ -134,7 +141,7 @@ function timeAgo(ts: number): string {
   return "1d+";
 }
 
-export default function ChatRoom({ roomId, encryptionKey, onLeave }: Props) {
+export default function ChatRoom({ roomId, encryptionKey, fingerprint, torIsolated, onLeave }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [othersHere, setOthersHere] = useState(false);
@@ -151,6 +158,8 @@ export default function ChatRoom({ roomId, encryptionKey, onLeave }: Props) {
   const keyRef = useRef(encryptionKey);
   keyRef.current = encryptionKey;
 
+  const [showFingerprint, setShowFingerprint] = useState(false);
+  const [stegoMode, setStegoMode] = useState(false);
   const [inactivityWarning, setInactivityWarning] = useState(false);
   const lastActivityRef = useRef(Date.now());
   const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -187,6 +196,72 @@ export default function ChatRoom({ roomId, encryptionKey, onLeave }: Props) {
       if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
     };
   }, [resetInactivityTimer]);
+
+  // Clipboard auto-clear: if anything is copied, wipe clipboard after 30s
+  useEffect(() => {
+    let clearTimer: ReturnType<typeof setTimeout> | null = null;
+    const onCopy = () => {
+      if (clearTimer) clearTimeout(clearTimer);
+      clearTimer = setTimeout(() => {
+        navigator.clipboard?.writeText("").catch(() => {});
+      }, 30000);
+    };
+    document.addEventListener("copy", onCopy);
+    return () => {
+      document.removeEventListener("copy", onCopy);
+      if (clearTimer) clearTimeout(clearTimer);
+    };
+  }, []);
+
+  // Panic key: triple-tap Escape to instantly wipe session and redirect
+  useEffect(() => {
+    let escCount = 0;
+    let escTimer: ReturnType<typeof setTimeout> | null = null;
+    const onPanic = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      escCount++;
+      if (escTimer) clearTimeout(escTimer);
+      if (escCount >= 3) {
+        // Terminate session server-side
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          wsSendJSON(wsRef.current, { type: "terminate" });
+        }
+        wsRef.current?.close();
+        // Wipe DOM content
+        document.body.innerHTML = "";
+        document.title = "Google";
+        // Clear all browser storage
+        try { sessionStorage.clear(); } catch {}
+        try { localStorage.clear(); } catch {}
+        // Clear clipboard
+        navigator.clipboard?.writeText("").catch(() => {});
+        // Redirect to benign page
+        window.location.replace("https://www.google.com");
+        return;
+      }
+      // Reset counter after 800ms if not enough taps
+      escTimer = setTimeout(() => { escCount = 0; }, 800);
+    };
+    window.addEventListener("keydown", onPanic, { capture: true });
+    return () => {
+      window.removeEventListener("keydown", onPanic, { capture: true });
+      if (escTimer) clearTimeout(escTimer);
+    };
+  }, []);
+
+  // Block common screenshot keyboard shortcuts
+  useEffect(() => {
+    const blockScreenshot = (e: KeyboardEvent) => {
+      // PrintScreen
+      if (e.key === "PrintScreen") { e.preventDefault(); return; }
+      // macOS: Cmd+Shift+3, Cmd+Shift+4, Cmd+Shift+5
+      if (e.metaKey && e.shiftKey && ["3", "4", "5"].includes(e.key)) { e.preventDefault(); return; }
+      // Windows: Win+Shift+S (Snipping Tool)
+      if (e.metaKey && e.shiftKey && e.key.toLowerCase() === "s") { e.preventDefault(); return; }
+    };
+    window.addEventListener("keydown", blockScreenshot, { capture: true });
+    return () => window.removeEventListener("keydown", blockScreenshot, { capture: true });
+  }, []);
 
   const hasScrolled = useRef(false);
   const scrollDown = useCallback(() => {
@@ -226,10 +301,11 @@ export default function ChatRoom({ roomId, encryptionKey, onLeave }: Props) {
     const key = keyRef.current;
 
     const ws = createSocket(roomId);
+    ws.binaryType = "arraybuffer";
     wsRef.current = ws;
 
     ws.addEventListener("open", () => {
-      ws.send(JSON.stringify({ type: "identify", token: sessionTokenRef.current }));
+      wsSendJSON(ws, { type: "identify", token: sessionTokenRef.current });
       setConnected(true);
       setError(null);
     });
@@ -237,9 +313,14 @@ export default function ChatRoom({ roomId, encryptionKey, onLeave }: Props) {
 
     ws.addEventListener("message", (event: MessageEvent | Event) => {
       let data: ServerEvent;
-      const raw = "data" in event ? event.data : null;
-      if (!raw) return;
-      try { data = JSON.parse(raw); } catch { return; }
+      if (!("data" in event)) return;
+      const raw = event.data;
+      // Decode binary frames (ArrayBuffer) or text
+      const str = raw instanceof ArrayBuffer
+        ? new TextDecoder().decode(raw)
+        : typeof raw === "string" ? raw : null;
+      if (!str) return;
+      try { data = JSON.parse(str); } catch { return; }
 
       if (data.type === "presence") {
         setOthersHere(data.othersHere);
@@ -297,7 +378,29 @@ export default function ChatRoom({ roomId, encryptionKey, onLeave }: Props) {
       }
     });
 
-    return () => { ws.close(); seenRef.current.clear(); };
+    // --- Decoy traffic ---
+    // Send encrypted no-op messages at random intervals to mask
+    // when real communication happens. Server treats them as normal
+    // messages; recipient decrypts and discards (nop flag).
+    const scheduleDecoy = () => {
+      const delay = 10000 + Math.floor(Math.random() * 50000); // 10–60s
+      return setTimeout(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          const decoy: MessageEnvelope = {
+            alias: aliasRef.current,
+            text: "",
+            ts: roundTimestamp(Date.now()),
+            nop: true,
+          };
+          const payload = encrypt(decoy, keyRef.current);
+          wsSendJSON(ws, { type: "message", payload });
+        }
+        decoyTimer = scheduleDecoy();
+      }, delay);
+    };
+    let decoyTimer = scheduleDecoy();
+
+    return () => { clearTimeout(decoyTimer); ws.close(); seenRef.current.clear(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
 
@@ -306,27 +409,82 @@ export default function ChatRoom({ roomId, encryptionKey, onLeave }: Props) {
     if (!text || !wsRef.current || text.length > MAX_MESSAGE_LENGTH) return;
     const envelope: MessageEnvelope = { alias: aliasRef.current, text, ts: roundTimestamp(Date.now()) };
     const payload = encrypt(envelope, encryptionKey);
-    wsRef.current.send(JSON.stringify({ type: "message", payload }));
+    wsSendJSON(wsRef.current, { type: "message", payload });
     setInput("");
     setDeadDropAcked(true);
   };
 
   const acknowledge = (ids: string[]) => {
     if (!wsRef.current || ids.length === 0) return;
-    wsRef.current.send(JSON.stringify({ type: "acknowledge", ids }));
+    wsSendJSON(wsRef.current, { type: "acknowledge", ids });
     setDeadDropAcked(true);
   };
 
   const leave = () => { wsRef.current?.close(); onLeave(); };
 
   const terminate = () => {
-    wsRef.current?.send(JSON.stringify({ type: "terminate" }));
+    if (wsRef.current) wsSendJSON(wsRef.current, { type: "terminate" });
     setShowTerminate(false);
     onLeave();
   };
 
   // Received button: only when alone picking up a dead drop (not already acked)
   const unreadFromOthers = deadDropAcked || othersHere ? [] : messages.filter((m) => !m.mine && m.burnAt === null);
+
+  // --- Steganographic mode: disguise as a Notes app ---
+  if (stegoMode) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          height: "100dvh",
+          background: "#1c1c1e",
+          position: "fixed" as const,
+          top: 0, left: 0, right: 0, bottom: 0,
+          overflow: "hidden",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", borderBottom: "1px solid #2c2c2e", background: "#1c1c1e", flexShrink: 0 }}>
+          <span style={{ fontSize: 17, fontWeight: 600, color: "#fff" }}>Notes</span>
+          <button onClick={() => setStegoMode(false)} style={{ fontSize: 13, color: "#ff9f0a", background: "none", border: "none", cursor: "pointer", padding: "4px 8px" }}>Edit</button>
+        </div>
+        <div
+          onCopy={(e) => e.preventDefault()}
+          onCut={(e) => e.preventDefault()}
+          onContextMenu={(e) => e.preventDefault()}
+          style={{ flex: 1, overflowY: "auto", padding: "12px 16px", userSelect: "none", WebkitUserSelect: "none" }}
+        >
+          {messages.length === 0 && historyLoaded && (
+            <p style={{ fontSize: 15, color: "#8e8e93", textAlign: "center", marginTop: 40 }}>No notes yet</p>
+          )}
+          {messages.map((msg) => (
+            <div key={msg.id} style={{ padding: "10px 0", borderBottom: "1px solid #2c2c2e" }}>
+              <div style={{ fontSize: 15, color: "#fff", lineHeight: 1.5, wordBreak: "break-word" }}>{msg.text}</div>
+              <div style={{ fontSize: 11, color: "#8e8e93", marginTop: 4 }}>{new Date(msg.ts).toLocaleString()}</div>
+            </div>
+          ))}
+          <div ref={bottomRef} />
+        </div>
+        <div style={{ display: "flex", padding: "10px 16px", paddingBottom: "calc(10px + env(safe-area-inset-bottom, 0px))", background: "#1c1c1e", borderTop: "1px solid #2c2c2e", flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", width: "100%", background: "#2c2c2e", borderRadius: 10, padding: "0 12px" }}>
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+              placeholder="Add a note..."
+              maxLength={MAX_MESSAGE_LENGTH}
+              autoFocus
+              autoComplete="off"
+              spellCheck={false}
+              style={{ flex: 1, background: "transparent", border: "none", fontSize: 16, color: "#fff", padding: "10px 0", minHeight: 40 }}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -364,6 +522,23 @@ export default function ChatRoom({ roomId, encryptionKey, onLeave }: Props) {
             nullchat
           </span>
           <div style={{ width: 1, height: 16, background: "#333", flexShrink: 0 }} />
+          <button
+            onClick={() => setShowFingerprint((v) => !v)}
+            title="Safety number — verify with your contact"
+            style={{
+              fontSize: 11,
+              fontFamily: "monospace",
+              color: showFingerprint ? "#30d158" : "#444",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              padding: "2px 4px",
+              letterSpacing: "0.1em",
+            }}
+          >
+            {showFingerprint ? fingerprint : "●●●●●"}
+          </button>
+          <div style={{ width: 1, height: 16, background: "#333", flexShrink: 0 }} />
           <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
             <div
               style={{
@@ -378,6 +553,21 @@ export default function ChatRoom({ roomId, encryptionKey, onLeave }: Props) {
               {!connected ? "Connecting..." : othersHere ? "Others here" : "Waiting..."}
             </span>
           </div>
+          <div style={{ width: 1, height: 16, background: "#333", flexShrink: 0 }} />
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 600,
+              letterSpacing: "0.05em",
+              color: torIsolated ? "#30d158" : "#ff453a",
+              background: torIsolated ? "rgba(48,209,88,0.1)" : "rgba(255,69,58,0.1)",
+              padding: "2px 8px",
+              borderRadius: 4,
+              whiteSpace: "nowrap",
+            }}
+          >
+            {torIsolated ? "TOR ONLY" : "CLEARNET"}
+          </span>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -394,6 +584,13 @@ export default function ChatRoom({ roomId, encryptionKey, onLeave }: Props) {
           >
             {aliasRef.current}
           </span>
+          <button
+            onClick={() => setStegoMode(true)}
+            title="Steganographic mode"
+            style={{ ...headerBtn, fontSize: 12, padding: "8px 6px", color: "#555" }}
+          >
+            &#9783;
+          </button>
           <button onClick={leave} style={headerBtn}>Leave</button>
           <button onClick={() => setShowTerminate(true)} style={{ ...headerBtn, color: "#ff453a" }}>
             Terminate
@@ -442,11 +639,16 @@ export default function ChatRoom({ roomId, encryptionKey, onLeave }: Props) {
 
       {/* ── Messages ── */}
       <div
+        onCopy={(e) => e.preventDefault()}
+        onCut={(e) => e.preventDefault()}
+        onContextMenu={(e) => e.preventDefault()}
         style={{
           flex: 1,
           overflowY: "auto",
           padding: "16px 16px",
           WebkitOverflowScrolling: "touch",
+          userSelect: "none",
+          WebkitUserSelect: "none",
         }}
       >
         {messages.length === 0 && historyLoaded && (
