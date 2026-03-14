@@ -330,7 +330,6 @@ export default class ChatRoom implements Party.Server {
     }
 
     await this.persistState();
-    this.broadcastPresence();
   }
 
   onClose(connection: Party.Connection) {

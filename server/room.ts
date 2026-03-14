@@ -111,20 +111,11 @@ export class ChatRoom {
     this.burnTimers.set(msg.id, timer);
   }
 
-  private presenceTimer: ReturnType<typeof setTimeout> | null = null;
-
-  // Delay presence broadcasts by a random 5–15 seconds to prevent
-  // network observers from correlating exact join/leave timestamps.
   private broadcastPresence() {
-    if (this.presenceTimer) clearTimeout(this.presenceTimer);
-    const delay = 5000 + Math.floor(Math.random() * 10000);
-    this.presenceTimer = setTimeout(() => {
-      this.presenceTimer = null;
-      const count = this.connections.size;
-      this.broadcast(
-        JSON.stringify({ type: "presence", othersHere: count > 1 })
-      );
-    }, delay);
+    const count = this.connections.size;
+    this.broadcast(
+      JSON.stringify({ type: "presence", othersHere: count > 1 })
+    );
   }
 
   private resetIdleTimer() {
@@ -145,7 +136,6 @@ export class ChatRoom {
     for (const timer of this.burnTimers.values()) clearTimeout(timer);
     this.burnTimers.clear();
     if (this.idleTimer) clearTimeout(this.idleTimer);
-    if (this.presenceTimer) clearTimeout(this.presenceTimer);
   }
 
   onConnect(ws: WebSocket): string {
@@ -179,9 +169,6 @@ export class ChatRoom {
       expiresAt: m.expiresAt,
     }));
     this.send(conn, JSON.stringify({ type: "history", messages: history }));
-    // Send immediate presence to the connecting client so they know the room state
-    this.send(conn, JSON.stringify({ type: "presence", othersHere: this.connections.size > 1 }));
-    // Delayed broadcast to others (metadata protection)
     this.broadcastPresence();
 
     return connId;
@@ -333,8 +320,6 @@ export class ChatRoom {
     if (this.connections.size > 1) {
       this.startBurnTimer(storedMsg);
     }
-
-    this.broadcastPresence();
   }
 
   onClose(connId: string) {
