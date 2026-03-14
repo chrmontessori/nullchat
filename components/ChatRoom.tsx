@@ -769,13 +769,6 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
           >
             {aliasRef.current}
           </span>
-          <button
-            onClick={() => setDarkMode((v) => !v)}
-            style={{ ...headerBtn, color: t.textSecondary, fontSize: 13, padding: "8px 8px" }}
-            title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
-          >
-            {darkMode ? "Light" : "Dark"}
-          </button>
           <button onClick={leave} style={{ ...headerBtn, color: t.textSecondary }}>Leave</button>
           <button onClick={() => setShowTerminate(true)} style={{ ...headerBtn, color: "#ff453a" }}>
             Terminate
