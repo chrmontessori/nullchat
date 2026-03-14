@@ -132,6 +132,10 @@ On the Tor hidden service (.onion), your IP address is never visible to the serv
     body: `We cannot provide what we do not have. There are no plaintext messages stored anywhere. There are no user accounts to look up. There are no IP logs to hand over. The encrypted blobs auto-delete on a fixed schedule. Even under a valid legal order, the most we could produce is a collection of encrypted blobs and room hashes — none of which are useful without the shared secret that only the participants know.`,
   },
   {
+    title: "Is nullchat open source?",
+    body: <>Yes. The entire codebase — client, server, encryption, and infrastructure configuration — is publicly available for audit at <a href="https://github.com/chrmontessori/nullchat" target="_blank" rel="noopener noreferrer" style={{ color: "#3478f6", textDecoration: "none" }}>github.com/chrmontessori/nullchat</a>. You can verify that the code running on the server matches what is published, build it yourself, or self-host your own instance. Transparency is not optional for a tool that asks you to trust it with your private communications.</>,
+  },
+  {
     title: "Who built nullchat?",
     body: <>nullchat is built by Artorias — a veteran-operated intelligence technology company based in New York City. Artorias exists to dismantle outdated systems and arm the most important organizations and individuals with tools purpose-built for operating in the dark. At its core, Artorias is about democratizing intelligence and anonymity — ensuring that the ability to communicate securely and operate without surveillance is not a privilege reserved for the few. nullchat is one expression of that mission: secure communication stripped to its essence, with no compromise on cryptographic integrity. Learn more at <a href="https://artorias.com" target="_blank" rel="noopener noreferrer" style={{ color: "#3478f6", textDecoration: "none" }}>artorias.com</a>.</>,
   },
