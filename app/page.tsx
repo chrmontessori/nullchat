@@ -5,8 +5,11 @@ import PasswordEntry from "@/components/PasswordEntry";
 import ChatRoom from "@/components/ChatRoom";
 import { deriveRoomId } from "@/lib/room";
 import { deriveKey } from "@/lib/crypto";
+import { useI18n } from "@/lib/i18n/context";
 
 function ConnectingScreen({ onReady }: { onReady: () => void }) {
+  const { t } = useI18n();
+
   useEffect(() => {
     const timer = setTimeout(onReady, 2000);
     return () => clearTimeout(timer);
@@ -36,7 +39,7 @@ function ConnectingScreen({ onReady }: { onReady: () => void }) {
           color: "#555",
         }}
       >
-        Establishing secure connection...
+        {t("establishing_connection")}
       </p>
       <div
         style={{

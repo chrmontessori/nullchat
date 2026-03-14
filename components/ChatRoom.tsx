@@ -10,6 +10,7 @@ import {
   type MessageEnvelope,
 } from "@/lib/crypto";
 import type { ServerEvent } from "@/lib/protocol";
+import { useI18n } from "@/lib/i18n/context";
 
 const WS_MODE = process.env.NEXT_PUBLIC_WS_MODE || "partykit";
 
@@ -166,7 +167,7 @@ function BurnTimer({ burnAt, color }: { burnAt: number; color?: string }) {
   );
 }
 
-function DeadDropTimer({ expiresAt, color }: { expiresAt: number; color?: string }) {
+function DeadDropTimer({ expiresAt, color, expiresLabel }: { expiresAt: number; color?: string; expiresLabel?: string }) {
   const [remaining, setRemaining] = useState(() => Math.max(0, expiresAt - Date.now()));
 
   useEffect(() => {
@@ -198,7 +199,7 @@ function DeadDropTimer({ expiresAt, color }: { expiresAt: number; color?: string
         color: color || "rgba(255,255,255,0.4)",
         marginLeft: 8,
       }}
-      title="Expires if unread"
+      title={expiresLabel}
     >
       {display}
     </span>
@@ -216,6 +217,7 @@ function timeAgo(ts: number): string {
 }
 
 export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }: Props) {
+  const { t } = useI18n();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [othersHere, setOthersHere] = useState(false);
@@ -233,7 +235,7 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
   keyRef.current = encryptionKey;
   const [stegoMode, setStegoMode] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
-  const t = darkMode ? darkTheme : lightTheme;
+  const theme = darkMode ? darkTheme : lightTheme;
   const [inactivityWarning, setInactivityWarning] = useState(false);
   const lastActivityRef = useRef(Date.now());
   const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -443,10 +445,10 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
         setOthersHere(data.othersHere);
       } else if (data.type === "error") {
         if (data.code === "RATE_LIMITED") {
-          setError("Slow down");
+          setError(t("slow_down"));
           setTimeout(() => setError(null), 2000);
         } else if (data.code === "ROOM_FULL") {
-          setError("Room is full");
+          setError(t("room_full"));
         }
       } else if (data.type === "deleted") {
         setMessages((prev) => prev.filter((m) => !data.ids.includes(m.id)));
@@ -690,7 +692,7 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
         display: "flex",
         flexDirection: "column",
         height: "100dvh",
-        background: t.bg,
+        background: theme.bg,
         paddingTop: "env(safe-area-inset-top, 0px)",
         overflow: "hidden",
         position: "fixed" as const,
@@ -708,18 +710,18 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
           alignItems: "center",
           justifyContent: "space-between",
           padding: "12px 16px",
-          borderBottom: `1px solid ${t.headerBorder}`,
-          background: t.headerBg,
+          borderBottom: `1px solid ${theme.headerBorder}`,
+          background: theme.headerBg,
           flexShrink: 0,
           gap: 8,
           flexWrap: "wrap",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-          <span style={{ fontSize: 16, fontWeight: 300, letterSpacing: "0.15em", color: t.text, whiteSpace: "nowrap" }}>
+          <span style={{ fontSize: 16, fontWeight: 300, letterSpacing: "0.15em", color: theme.text, whiteSpace: "nowrap" }}>
             nullchat
           </span>
-          <div style={{ width: 1, height: 16, background: t.divider, flexShrink: 0 }} />
+          <div style={{ width: 1, height: 16, background: theme.divider, flexShrink: 0 }} />
           <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
             <div
               style={{
@@ -730,11 +732,11 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
                 flexShrink: 0,
               }}
             />
-            <span style={{ fontSize: 13, color: t.textSecondary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {!connected ? "Connecting..." : othersHere ? "Others here" : "Waiting..."}
+            <span style={{ fontSize: 13, color: theme.textSecondary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {!connected ? t("connecting") : othersHere ? t("others_here") : t("waiting")}
             </span>
           </div>
-          <div style={{ width: 1, height: 16, background: t.divider, flexShrink: 0 }} />
+          <div style={{ width: 1, height: 16, background: theme.divider, flexShrink: 0 }} />
           <span
             style={{
               fontSize: 10,
@@ -747,7 +749,7 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
               whiteSpace: "nowrap",
             }}
           >
-            {torIsolated ? "TOR ONLY" : "CLEARNET"}
+            {torIsolated ? t("tor_only") : t("clearnet")}
           </span>
         </div>
 
@@ -756,8 +758,8 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
             style={{
               fontSize: 12,
               fontFamily: "monospace",
-              color: t.accent,
-              background: t.aliasBg,
+              color: theme.accent,
+              background: theme.aliasBg,
               padding: "3px 8px",
               borderRadius: 6,
               whiteSpace: "nowrap",
@@ -768,9 +770,9 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
           >
             {aliasRef.current}
           </span>
-          <button onClick={leave} style={{ ...headerBtn, color: t.textSecondary }}>Leave</button>
+          <button onClick={leave} style={{ ...headerBtn, color: theme.textSecondary }}>{t("leave")}</button>
           <button onClick={() => setShowTerminate(true)} style={{ ...headerBtn, color: "#ff453a" }}>
-            Terminate
+            {t("terminate")}
           </button>
         </div>
       </div>
@@ -783,18 +785,18 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
             alignItems: "center",
             justifyContent: "space-between",
             padding: "12px 16px",
-            borderBottom: `1px solid ${t.headerBorder}`,
-            background: t.headerBg,
+            borderBottom: `1px solid ${theme.headerBorder}`,
+            background: theme.headerBg,
             flexShrink: 0,
             gap: 8,
             flexWrap: "wrap",
           }}
         >
-          <span style={{ fontSize: 13, color: t.textSecondary }}>
-            Delete all your messages and disconnect?
+          <span style={{ fontSize: 13, color: theme.textSecondary }}>
+            {t("terminate_confirm")}
           </span>
           <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => setShowTerminate(false)} style={{ ...headerBtn, color: t.textSecondary }}>Cancel</button>
+            <button onClick={() => setShowTerminate(false)} style={{ ...headerBtn, color: theme.textSecondary }}>{t("cancel")}</button>
             <button
               onClick={terminate}
               style={{
@@ -808,7 +810,7 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
                 minHeight: 36,
               }}
             >
-              Confirm
+              {t("confirm")}
             </button>
           </div>
         </div>
@@ -839,8 +841,8 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
               gap: 8,
             }}
           >
-            <p style={{ fontSize: 15, color: t.textMuted }}>End-to-end encrypted</p>
-            <p style={{ fontSize: 13, color: t.textFaint }}>Messages burn 5 minutes after being received</p>
+            <p style={{ fontSize: 15, color: theme.textMuted }}>{t("e2e_encrypted")}</p>
+            <p style={{ fontSize: 13, color: theme.textFaint }}>{t("messages_burn")}</p>
           </div>
         )}
 
@@ -861,12 +863,12 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
                   borderRadius: 18,
                   borderBottomRightRadius: msg.mine ? 4 : 18,
                   borderBottomLeftRadius: msg.mine ? 18 : 4,
-                  background: msg.mine ? t.myBubble : t.theirBubble,
-                  color: msg.mine ? "#fff" : t.text,
+                  background: msg.mine ? theme.myBubble : theme.theirBubble,
+                  color: msg.mine ? "#fff" : theme.text,
                 }}
               >
                 {!msg.mine && (
-                  <div style={{ fontSize: 11, fontFamily: "monospace", color: t.accent, marginBottom: 3 }}>
+                  <div style={{ fontSize: 11, fontFamily: "monospace", color: theme.accent, marginBottom: 3 }}>
                     {msg.alias}
                   </div>
                 )}
@@ -885,15 +887,15 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
                   <span
                     style={{
                       fontSize: 11,
-                      color: msg.mine ? t.timeAgoMine : t.timeAgoTheirs,
+                      color: msg.mine ? theme.timeAgoMine : theme.timeAgoTheirs,
                     }}
                   >
                     {timeAgo(msg.ts)}
                   </span>
                   {msg.burnAt !== null ? (
-                    <BurnTimer burnAt={msg.burnAt} color={t.burnTimer} />
+                    <BurnTimer burnAt={msg.burnAt} color={theme.burnTimer} />
                   ) : !othersHere ? (
-                    <DeadDropTimer expiresAt={msg.expiresAt} color={t.deadDropTimer} />
+                    <DeadDropTimer expiresAt={msg.expiresAt} color={theme.deadDropTimer} expiresLabel={t("expires_unread")} />
                   ) : null}
                 </div>
               </div>
@@ -910,7 +912,7 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
             display: "flex",
             justifyContent: "center",
             padding: "8px 16px",
-            borderTop: `1px solid ${t.headerBorder}`,
+            borderTop: `1px solid ${theme.headerBorder}`,
             flexShrink: 0,
           }}
         >
@@ -920,14 +922,14 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
               fontSize: 13,
               color: "#30d158",
               background: "none",
-              border: `1px solid ${t.receivedBorder}`,
+              border: `1px solid ${theme.receivedBorder}`,
               borderRadius: 20,
               padding: "8px 24px",
               cursor: "pointer",
               minHeight: 36,
             }}
           >
-            Received
+            {t("received")}
           </button>
         </div>
       )}
@@ -941,28 +943,28 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
             justifyContent: "center",
             gap: 12,
             padding: "10px 16px",
-            background: t.warningBg,
-            borderTop: `1px solid ${t.warningBorder}`,
+            background: theme.warningBg,
+            borderTop: `1px solid ${theme.warningBorder}`,
             flexShrink: 0,
           }}
         >
-          <span style={{ fontSize: 13, color: t.warningText }}>
-            Inactive — disconnecting soon
+          <span style={{ fontSize: 13, color: theme.warningText }}>
+            {t("inactive_warning")}
           </span>
           <button
             onClick={resetInactivityTimer}
             style={{
               fontSize: 13,
-              color: t.warningText,
+              color: theme.warningText,
               background: "none",
-              border: `1px solid ${t.warningBorder}`,
+              border: `1px solid ${theme.warningBorder}`,
               borderRadius: 20,
               padding: "6px 16px",
               cursor: "pointer",
               minHeight: 32,
             }}
           >
-            Stay
+            {t("stay")}
           </button>
         </div>
       )}
@@ -982,7 +984,7 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
           padding: "12px 16px",
           paddingBottom: "calc(12px + env(safe-area-inset-bottom, 0px))",
           flexShrink: 0,
-          background: t.bg,
+          background: theme.bg,
         }}
       >
         <div
@@ -991,9 +993,9 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
             alignItems: "center",
             width: "100%",
             maxWidth: 560,
-            border: `1px solid ${t.inputBorder}`,
+            border: `1px solid ${theme.inputBorder}`,
             borderRadius: 24,
-            background: t.inputBg,
+            background: theme.inputBg,
             padding: "0 16px",
           }}
         >
@@ -1002,7 +1004,7 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-            placeholder="Message"
+            placeholder={t("message_placeholder")}
             maxLength={MAX_MESSAGE_LENGTH}
             autoFocus
             autoComplete="off"
@@ -1012,7 +1014,7 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
               background: "transparent",
               border: "none",
               fontSize: 16,
-              color: t.text,
+              color: theme.text,
               padding: "12px 0",
               minHeight: 44,
             }}
@@ -1022,7 +1024,7 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
             style={{
               background: "none",
               border: "none",
-              color: input.trim() ? t.accent : t.textFaint,
+              color: input.trim() ? theme.accent : theme.textFaint,
               fontSize: 15,
               fontWeight: 600,
               cursor: "pointer",
@@ -1035,7 +1037,7 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
             }}
             aria-label="Send"
           >
-            Send
+            {t("send")}
           </button>
         </div>
       </div>

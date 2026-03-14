@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import EntropyHint from "./EntropyHint";
+import { useI18n, LANGUAGES } from "@/lib/i18n/context";
 
 const IS_TOR = process.env.NEXT_PUBLIC_WS_MODE === "standalone";
 
@@ -14,6 +15,8 @@ interface Props {
 export default function PasswordEntry({ onSubmit, loading }: Props) {
   const [password, setPassword] = useState("");
   const [torIsolated, setTorIsolated] = useState(false);
+  const [showLangPicker, setShowLangPicker] = useState(false);
+  const { t, lang, setLang } = useI18n();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,7 +57,7 @@ export default function PasswordEntry({ onSubmit, loading }: Props) {
           nullchat
         </h1>
         <p style={{ fontSize: 14, color: "#666", marginBottom: 48 }}>
-          encrypted &middot; anonymous &middot; ephemeral
+          {t("encrypted_anonymous_ephemeral")}
         </p>
 
         {/* Form */}
@@ -64,7 +67,7 @@ export default function PasswordEntry({ onSubmit, loading }: Props) {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleSubmit(e); } }}
-            placeholder="Enter shared secret"
+            placeholder={t("enter_shared_secret")}
             autoFocus
             autoComplete="off"
             spellCheck={false}
@@ -96,7 +99,7 @@ export default function PasswordEntry({ onSubmit, loading }: Props) {
             <EntropyHint password={password} />
             {loading && (
               <span style={{ fontSize: 13, color: "#666" }}>
-                Deriving key...
+                {t("deriving_key")}
               </span>
             )}
           </div>
@@ -144,14 +147,14 @@ export default function PasswordEntry({ onSubmit, loading }: Props) {
                 />
               </div>
               <span style={{ fontSize: 12, color: torIsolated ? "#30d158" : "#666", whiteSpace: "nowrap" }}>
-                Tor-only room
+                {t("tor_only_room")}
               </span>
             </button>
           )}
         </form>
 
         <p style={{ fontSize: 13, color: "#444", marginTop: 12 }}>
-          Press{" "}
+          {t("press")}{t("press") ? " " : ""}
           <span
             style={{
               display: "inline-block",
@@ -162,15 +165,15 @@ export default function PasswordEntry({ onSubmit, loading }: Props) {
               color: "#666",
             }}
           >
-            return
+            {t("return_key")}
           </span>
-          {" "}to enter
+          {" "}{t("to_enter")}
         </p>
 
         {/* Footer */}
         <div style={{ marginTop: 48 }}>
           <p style={{ fontSize: 12, color: "#333" }}>
-            End-to-end encrypted. No accounts. No logs.
+            {t("e2e_no_accounts")}
           </p>
           <Link
             href="/faq"
@@ -182,10 +185,10 @@ export default function PasswordEntry({ onSubmit, loading }: Props) {
               textDecoration: "none",
             }}
           >
-            How it works &rarr;
+            {t("how_it_works")} &rarr;
           </Link>
           <p style={{ fontSize: 11, color: "#333", marginTop: 24 }}>
-            Powered by{" "}
+            {t("powered_by")}{" "}
             <a
               href="https://artorias.com"
               target="_blank"
@@ -195,6 +198,62 @@ export default function PasswordEntry({ onSubmit, loading }: Props) {
               Artorias
             </a>
           </p>
+
+          {/* Language selector */}
+          <div style={{ marginTop: 16, position: "relative" }}>
+            <button
+              onClick={() => setShowLangPicker((v) => !v)}
+              style={{
+                fontSize: 12,
+                color: "#555",
+                background: "none",
+                border: "1px solid #222",
+                borderRadius: 4,
+                padding: "4px 12px",
+                cursor: "pointer",
+              }}
+            >
+              {LANGUAGES.find((l) => l.code === lang)?.nativeName ?? "English"}
+            </button>
+            {showLangPicker && (
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: "calc(100% + 4px)",
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  background: "#111",
+                  border: "1px solid #333",
+                  borderRadius: 8,
+                  padding: "8px 0",
+                  maxHeight: 280,
+                  overflowY: "auto",
+                  width: 200,
+                  zIndex: 100,
+                }}
+              >
+                {LANGUAGES.map((l) => (
+                  <button
+                    key={l.code}
+                    onClick={() => { setLang(l.code); setShowLangPicker(false); }}
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      textAlign: "left",
+                      padding: "8px 16px",
+                      fontSize: 13,
+                      color: l.code === lang ? "#3478f6" : "#aaa",
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {l.nativeName}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

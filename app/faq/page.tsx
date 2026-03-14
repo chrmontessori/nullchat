@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useI18n } from "@/lib/i18n/context";
 
 const sections: { title: string; body: React.ReactNode }[] = [
   {
@@ -184,9 +185,16 @@ This is useful if someone is looking over your shoulder or if your screen is vis
     title: "Who built nullchat?",
     body: <>nullchat is built by Artorias — a veteran-operated intelligence technology company based in New York City. Artorias exists to dismantle outdated systems and arm the most important organizations and individuals with tools purpose-built for operating in the dark. At its core, Artorias is about democratizing intelligence and anonymity — ensuring that the ability to communicate securely and operate without surveillance is not a privilege reserved for the few. nullchat is one expression of that mission: secure communication stripped to its essence, with no compromise on cryptographic integrity. Learn more at <a href="https://artorias.com" target="_blank" rel="noopener noreferrer" style={{ color: "#3478f6", textDecoration: "none" }}>artorias.com</a>.</>,
   },
+  {
+    title: "Can I add nullchat to my home screen?",
+    body: `Yes. nullchat supports Add to Home Screen on both iOS and Android. On iOS Safari, tap the share button and select "Add to Home Screen." On Android Chrome, tap the menu and select "Add to Home Screen" or "Install app." This creates a standalone shortcut that opens nullchat without browser chrome — no address bar, no tabs. It looks and feels like a native app.
+
+Important: nullchat deliberately does not use a service worker or cache any data offline. There is no offline mode. The home screen shortcut simply opens the live site — nothing is stored on your device beyond the shortcut itself. This is a security decision: caching encrypted chat pages or service worker scripts on the device would create forensic evidence that nullchat was used. The shortcut leaves no trace beyond its own icon, which can be deleted at any time.`,
+  },
 ];
 
 export default function FAQ() {
+  const { t } = useI18n();
   return (
     <div
       style={{
@@ -208,7 +216,7 @@ export default function FAQ() {
               textDecoration: "none",
             }}
           >
-            &larr; Back
+            &larr; {t("back")}
           </Link>
         </div>
 
@@ -221,11 +229,10 @@ export default function FAQ() {
             marginBottom: 8,
           }}
         >
-          How it works
+          {t("how_it_works")}
         </h1>
         <p style={{ fontSize: 16, color: "#666", marginBottom: 56 }}>
-          Full transparency on what nullchat does, how it protects you,
-          and what we can and cannot see.
+          {t("faq_subtitle")}
         </p>
 
         {/* Sections */}
@@ -272,7 +279,7 @@ export default function FAQ() {
           }}
         >
           <p style={{ fontSize: 13, color: "#444" }}>
-            nullchat &mdash; encrypted &middot; anonymous &middot; ephemeral
+            {t("faq_footer")}
           </p>
         </div>
       </div>
