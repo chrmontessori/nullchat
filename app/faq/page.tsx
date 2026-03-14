@@ -168,9 +168,9 @@ Decoy traffic defeats traffic analysis. Without it, an observer monitoring netwo
   },
   {
     title: "What is steganographic mode?",
-    body: `Steganographic mode disguises the nullchat interface as a generic note-taking app. Triple-tap the backtick key (\`) to activate it. The entire UI transforms — the dark chat interface is replaced with a simple "Notes" app appearance. Messages appear as plain notes with timestamps, and the input field reads "Add a note..." instead of "Message." All encryption, burn timers, and security features continue to operate normally underneath.
+    body: `Steganographic mode disguises the nullchat interface as a generic note-taking app. Triple-tap the Tab key to activate it. The entire UI transforms — the dark chat interface is replaced with a simple "Notes" app appearance. Messages appear as plain notes with timestamps, and the input field reads "Add a note..." instead of "Message." All encryption, burn timers, and security features continue to operate normally underneath.
 
-This is useful if someone is looking over your shoulder or if your screen is visible to others. At a glance, it looks like you're writing notes, not having an encrypted conversation. Triple-tap backtick again to return to the normal chat view.`,
+This is useful if someone is looking over your shoulder or if your screen is visible to others. At a glance, it looks like you're writing notes, not having an encrypted conversation. Triple-tap Tab again to return to the normal chat view.`,
   },
   {
     title: "Does nullchat auto-clear the clipboard?",

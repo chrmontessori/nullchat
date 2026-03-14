@@ -269,14 +269,13 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
     };
   }, []);
 
-  // Steganographic mode: triple-tap backtick to toggle
+  // Steganographic mode: triple-tap Tab to toggle
   useEffect(() => {
     let tapCount = 0;
     let tapTimer: ReturnType<typeof setTimeout> | null = null;
     const onStego = (e: KeyboardEvent) => {
-      if (e.key !== "`") return;
-      // Ignore if typing in the input field
-      if ((e.target as HTMLElement)?.tagName === "INPUT") return;
+      if (e.key !== "Tab") return;
+      e.preventDefault(); // prevent focus shift
       tapCount++;
       if (tapTimer) clearTimeout(tapTimer);
       if (tapCount >= 3) {
