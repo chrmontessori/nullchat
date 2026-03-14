@@ -129,10 +129,20 @@ The production server runs with:
 
 The encryption is solid. The weak link in any web-based E2E tool is the delivery mechanism — the server could theoretically serve modified JavaScript that exfiltrates keys. This is true of every web app doing client-side encryption (Signal Web, WhatsApp Web, etc.).
 
-Mitigations in place:
+### Why not a native app?
+
+A downloadable client (desktop or mobile) would close the JavaScript delivery gap, but it opens a worse one for our users: **it creates evidence.** A binary on your device can be forensically discovered, tied to your identity through app store accounts, download logs, browser history, or device backups. For users who need anonymity — not just encryption — that tradeoff is unacceptable.
+
+The web is the only delivery mechanism that leaves no trace. There is nothing to install, nothing to find on the device, and nothing that survives closing the tab. nullchat is built for people who need to communicate without proof that they ever communicated at all. A native client would undermine that guarantee at the most fundamental level.
+
+We accept the JavaScript delivery risk because the alternative — forcing users to download software — is a greater threat to the people this tool is built for.
+
+### Mitigations
+
 - Code is open source for public audit
 - SRI hashes verify asset integrity at load time
 - Application filesystem is read-only
+- Reproducible builds — clone the repo, run `npm run build`, and compare against what is deployed
 
 The best protection is to verify the code yourself.
 
