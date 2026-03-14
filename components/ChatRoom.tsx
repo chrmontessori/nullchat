@@ -269,6 +269,30 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
     };
   }, []);
 
+  // Steganographic mode: triple-tap backtick to toggle
+  useEffect(() => {
+    let tapCount = 0;
+    let tapTimer: ReturnType<typeof setTimeout> | null = null;
+    const onStego = (e: KeyboardEvent) => {
+      if (e.key !== "`") return;
+      // Ignore if typing in the input field
+      if ((e.target as HTMLElement)?.tagName === "INPUT") return;
+      tapCount++;
+      if (tapTimer) clearTimeout(tapTimer);
+      if (tapCount >= 3) {
+        tapCount = 0;
+        setStegoMode((v) => !v);
+        return;
+      }
+      tapTimer = setTimeout(() => { tapCount = 0; }, 800);
+    };
+    window.addEventListener("keydown", onStego, { capture: true });
+    return () => {
+      window.removeEventListener("keydown", onStego, { capture: true });
+      if (tapTimer) clearTimeout(tapTimer);
+    };
+  }, []);
+
   // Block common screenshot keyboard shortcuts
   useEffect(() => {
     const blockScreenshot = (e: KeyboardEvent) => {
@@ -613,13 +637,6 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
           >
             {aliasRef.current}
           </span>
-          <button
-            onClick={() => setStegoMode(true)}
-            title="Steganographic mode"
-            style={{ ...headerBtn, fontSize: 12, padding: "8px 6px", color: "#555" }}
-          >
-            &#9783;
-          </button>
           <button onClick={leave} style={headerBtn}>Leave</button>
           <button onClick={() => setShowTerminate(true)} style={{ ...headerBtn, color: "#ff453a" }}>
             Terminate
