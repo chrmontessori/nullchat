@@ -78,7 +78,6 @@ export default function FAQ() {
         </>
       ),
     },
-    { title: tf("faq_32_title"), body: tf("faq_32_body") },
   ];
 
   return (

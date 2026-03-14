@@ -31,8 +31,7 @@ export type FaqKey =
   | "faq_28_title" | "faq_28_body"
   | "faq_29_title" | "faq_29_body"
   | "faq_30_title" | "faq_30_body_1" | "faq_30_body_2"
-  | "faq_31_title" | "faq_31_body_1"
-  | "faq_32_title" | "faq_32_body";
+  | "faq_31_title" | "faq_31_body_1";
 
 import { en } from "./faq/en";
 import { es } from "./faq/es";
