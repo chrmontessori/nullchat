@@ -1,0 +1,36 @@
+{
+  "name": "nullchat",
+  "version": "1.0.0",
+  "description": "Anonymous encrypted ephemeral chat rooms",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "build:tor": "NEXT_PUBLIC_WS_MODE=standalone STATIC_EXPORT=1 next build && tsc -p server/tsconfig.json",
+    "start:tor": "node server/dist/index.js",
+    "dev:tor": "NEXT_PUBLIC_WS_MODE=standalone STATIC_EXPORT=1 next build && tsx server/index.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "next": "^16.1.6",
+    "partysocket": "^1.1.16",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "tweetnacl": "^1.0.3",
+    "tweetnacl-util": "^0.15.1",
+    "ws": "^8.19.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.2.1",
+    "@types/node": "^25.4.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@types/ws": "^8.18.1",
+    "partykit": "^0.0.115",
+    "tailwindcss": "^4.2.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}

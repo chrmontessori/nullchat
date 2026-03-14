@@ -1,0 +1,6 @@
+{
+  "name": "nullchat",
+  "main": "party/chat.ts",
+  "compatibilityDate": "2024-01-01",
+  "port": 1999
+}

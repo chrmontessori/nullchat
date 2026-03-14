@@ -1,0 +1,676 @@
+"use client";
+
+import { useEffect, useRef, useState, useCallback } from "react";
+import PartySocket from "partysocket";
+import {
+  encrypt,
+  decrypt,
+  generateAlias,
+  roundTimestamp,
+  type MessageEnvelope,
+} from "@/lib/crypto";
+import type { ServerEvent } from "@/lib/protocol";
+
+const WS_MODE = process.env.NEXT_PUBLIC_WS_MODE || "partykit";
+
+function generateUUID(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+function createSocket(roomId: string): WebSocket {
+  if (WS_MODE === "standalone") {
+    // Tor: connect to same origin
+    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return new WebSocket(`${proto}//${window.location.host}/ws/${roomId}`);
+  }
+  // Clearnet: connect to shared WebSocket server
+  const wsHost = process.env.NEXT_PUBLIC_WS_HOST || "ws.nullchat.org";
+  return new WebSocket(`wss://${wsHost}/ws/${roomId}`);
+}
+
+interface Props {
+  roomId: string;
+  encryptionKey: Uint8Array;
+  onLeave: () => void;
+}
+
+interface ChatMessage {
+  id: string;
+  alias: string;
+  text: string;
+  ts: number;
+  mine: boolean;
+  burnAt: number | null; // null = unread, timestamp = burning
+  expiresAt: number; // server-assigned expiry timestamp
+}
+
+const MAX_MESSAGE_LENGTH = 4096;
+const INACTIVITY_TIMEOUT = 15 * 60 * 1000; // 15 minutes
+const INACTIVITY_WARNING = 13 * 60 * 1000; // warn at 13 minutes
+
+function BurnTimer({ burnAt }: { burnAt: number }) {
+  const [remaining, setRemaining] = useState(() => Math.max(0, burnAt - Date.now()));
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const left = Math.max(0, burnAt - Date.now());
+      setRemaining(left);
+      if (left <= 0) clearInterval(interval);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [burnAt]);
+
+  const totalSecs = Math.ceil(remaining / 1000);
+  const mins = Math.floor(totalSecs / 60);
+  const secs = totalSecs % 60;
+  const display = `${mins}:${secs.toString().padStart(2, "0")}`;
+  const urgent = totalSecs <= 60;
+
+  return (
+    <span
+      style={{
+        fontSize: 11,
+        fontFamily: "monospace",
+        color: urgent ? "#ff453a" : "#666",
+        marginLeft: 8,
+      }}
+    >
+      {display}
+    </span>
+  );
+}
+
+function DeadDropTimer({ expiresAt }: { expiresAt: number }) {
+  const [remaining, setRemaining] = useState(() => Math.max(0, expiresAt - Date.now()));
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const left = Math.max(0, expiresAt - Date.now());
+      setRemaining(left);
+      if (left <= 0) clearInterval(interval);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [expiresAt]);
+
+  const totalSecs = Math.ceil(remaining / 1000);
+  const hrs = Math.floor(totalSecs / 3600);
+  const mins = Math.floor((totalSecs % 3600) / 60);
+
+  let display: string;
+  if (hrs > 0) {
+    display = `${hrs}h ${mins}m`;
+  } else {
+    const secs = totalSecs % 60;
+    display = `${mins}:${secs.toString().padStart(2, "0")}`;
+  }
+
+  return (
+    <span
+      style={{
+        fontSize: 11,
+        fontFamily: "monospace",
+        color: "rgba(255,255,255,0.4)",
+        marginLeft: 8,
+      }}
+      title="Expires if unread"
+    >
+      {display}
+    </span>
+  );
+}
+
+function timeAgo(ts: number): string {
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "now";
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  return "1d+";
+}
+
+export default function ChatRoom({ roomId, encryptionKey, onLeave }: Props) {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [othersHere, setOthersHere] = useState(false);
+  const [connected, setConnected] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showTerminate, setShowTerminate] = useState(false);
+  const [deadDropAcked, setDeadDropAcked] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+  const aliasRef = useRef(generateAlias());
+  const sessionTokenRef = useRef(generateUUID());
+  const wsRef = useRef<WebSocket | null>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const seenRef = useRef(new Set<string>());
+  const keyRef = useRef(encryptionKey);
+  keyRef.current = encryptionKey;
+
+  const [inactivityWarning, setInactivityWarning] = useState(false);
+  const lastActivityRef = useRef(Date.now());
+  const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const warningTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const resetInactivityTimer = useCallback(() => {
+    lastActivityRef.current = Date.now();
+    setInactivityWarning(false);
+
+    if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
+    if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+
+    warningTimerRef.current = setTimeout(() => {
+      setInactivityWarning(true);
+    }, INACTIVITY_WARNING);
+
+    inactivityTimerRef.current = setTimeout(() => {
+      wsRef.current?.close();
+      onLeave();
+    }, INACTIVITY_TIMEOUT);
+  }, [onLeave]);
+
+  // Start inactivity timer on mount, listen for user activity
+  useEffect(() => {
+    resetInactivityTimer();
+
+    const events = ["pointerdown", "keydown", "scroll", "touchstart"] as const;
+    const handler = () => resetInactivityTimer();
+    for (const e of events) window.addEventListener(e, handler, { passive: true });
+
+    return () => {
+      for (const e of events) window.removeEventListener(e, handler);
+      if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
+      if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+    };
+  }, [resetInactivityTimer]);
+
+  const hasScrolled = useRef(false);
+  const scrollDown = useCallback(() => {
+    if (!hasScrolled.current) {
+      bottomRef.current?.scrollIntoView({ behavior: "instant" });
+      hasScrolled.current = true;
+    } else {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, []);
+
+  useEffect(() => { scrollDown(); }, [messages, scrollDown]);
+
+  // Client-side cleanup: remove messages whose burn timer has expired
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setMessages((prev) => {
+        const now = Date.now();
+        const filtered = prev.filter((m) => m.burnAt === null || m.burnAt > now);
+        return filtered.length === prev.length ? prev : filtered;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Handle mobile viewport resize when keyboard opens/closes
+  useEffect(() => {
+    const handleResize = () => {
+      setTimeout(scrollDown, 300);
+    };
+    window.visualViewport?.addEventListener("resize", handleResize);
+    return () => window.visualViewport?.removeEventListener("resize", handleResize);
+  }, [scrollDown]);
+
+  useEffect(() => {
+    const alias = aliasRef.current;
+    const key = keyRef.current;
+
+    const ws = createSocket(roomId);
+    wsRef.current = ws;
+
+    ws.addEventListener("open", () => {
+      ws.send(JSON.stringify({ type: "identify", token: sessionTokenRef.current }));
+      setConnected(true);
+      setError(null);
+    });
+    ws.addEventListener("close", () => { setConnected(false); });
+
+    ws.addEventListener("message", (event: MessageEvent | Event) => {
+      let data: ServerEvent;
+      const raw = "data" in event ? event.data : null;
+      if (!raw) return;
+      try { data = JSON.parse(raw); } catch { return; }
+
+      if (data.type === "presence") {
+        setOthersHere(data.othersHere);
+      } else if (data.type === "error") {
+        if (data.code === "RATE_LIMITED") {
+          setError("Slow down");
+          setTimeout(() => setError(null), 2000);
+        } else if (data.code === "ROOM_FULL") {
+          setError("Room is full");
+        }
+      } else if (data.type === "deleted") {
+        setMessages((prev) => prev.filter((m) => !data.ids.includes(m.id)));
+      } else if (data.type === "burn") {
+        setDeadDropAcked(true);
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === data.id ? { ...m, burnAt: data.burnAt } : m
+          )
+        );
+      } else if (data.type === "history") {
+        const dec: ChatMessage[] = [];
+        for (const msg of data.messages) {
+          if (seenRef.current.has(msg.id)) continue;
+          const env = decrypt(msg.payload, key);
+          if (env) {
+            seenRef.current.add(msg.id);
+            dec.push({
+              id: msg.id,
+              alias: env.alias,
+              text: env.text,
+              ts: env.ts,
+              mine: env.alias === alias,
+              burnAt: msg.burnAt,
+              expiresAt: msg.expiresAt,
+            });
+          }
+        }
+        if (dec.length) setMessages((prev) => [...prev, ...dec]);
+        setHistoryLoaded(true);
+      } else if (data.type === "message") {
+        if (seenRef.current.has(data.id)) return;
+        const env = decrypt(data.payload, key);
+        if (env) {
+          seenRef.current.add(data.id);
+          setMessages((prev) => [...prev, {
+            id: data.id,
+            alias: env.alias,
+            text: env.text,
+            ts: env.ts,
+            mine: env.alias === alias,
+            burnAt: null,
+            expiresAt: data.expiresAt,
+          }]);
+        }
+      }
+    });
+
+    return () => { ws.close(); seenRef.current.clear(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId]);
+
+  const send = () => {
+    const text = input.trim();
+    if (!text || !wsRef.current || text.length > MAX_MESSAGE_LENGTH) return;
+    const envelope: MessageEnvelope = { alias: aliasRef.current, text, ts: roundTimestamp(Date.now()) };
+    const payload = encrypt(envelope, encryptionKey);
+    wsRef.current.send(JSON.stringify({ type: "message", payload }));
+    setInput("");
+    setDeadDropAcked(true);
+  };
+
+  const acknowledge = (ids: string[]) => {
+    if (!wsRef.current || ids.length === 0) return;
+    wsRef.current.send(JSON.stringify({ type: "acknowledge", ids }));
+    setDeadDropAcked(true);
+  };
+
+  const leave = () => { wsRef.current?.close(); onLeave(); };
+
+  const terminate = () => {
+    wsRef.current?.send(JSON.stringify({ type: "terminate" }));
+    setShowTerminate(false);
+    onLeave();
+  };
+
+  // Received button: only when alone picking up a dead drop (not already acked)
+  const unreadFromOthers = deadDropAcked || othersHere ? [] : messages.filter((m) => !m.mine && m.burnAt === null);
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100dvh",
+        background: "#000",
+        paddingTop: "env(safe-area-inset-top, 0px)",
+        overflow: "hidden",
+        position: "fixed" as const,
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+      }}
+    >
+
+      {/* ── Header ── */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "12px 16px",
+          borderBottom: "1px solid #222",
+          background: "#0a0a0a",
+          flexShrink: 0,
+          gap: 8,
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+          <span style={{ fontSize: 16, fontWeight: 300, letterSpacing: "0.15em", color: "#fff", whiteSpace: "nowrap" }}>
+            nullchat
+          </span>
+          <div style={{ width: 1, height: 16, background: "#333", flexShrink: 0 }} />
+          <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+            <div
+              style={{
+                width: 7,
+                height: 7,
+                borderRadius: "50%",
+                background: connected ? "#30d158" : "#ff453a",
+                flexShrink: 0,
+              }}
+            />
+            <span style={{ fontSize: 13, color: "#888", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {!connected ? "Connecting..." : othersHere ? "Others here" : "Waiting..."}
+            </span>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span
+            style={{
+              fontSize: 12,
+              fontFamily: "monospace",
+              color: "#3478f6",
+              background: "#111",
+              padding: "3px 8px",
+              borderRadius: 6,
+              whiteSpace: "nowrap",
+            }}
+          >
+            {aliasRef.current}
+          </span>
+          <button onClick={leave} style={headerBtn}>Leave</button>
+          <button onClick={() => setShowTerminate(true)} style={{ ...headerBtn, color: "#ff453a" }}>
+            Terminate
+          </button>
+        </div>
+      </div>
+
+      {/* ── Terminate confirmation ── */}
+      {showTerminate && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "12px 16px",
+            borderBottom: "1px solid #222",
+            background: "#0a0a0a",
+            flexShrink: 0,
+            gap: 8,
+            flexWrap: "wrap",
+          }}
+        >
+          <span style={{ fontSize: 13, color: "#888" }}>
+            Delete all your messages and disconnect?
+          </span>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => setShowTerminate(false)} style={headerBtn}>Cancel</button>
+            <button
+              onClick={terminate}
+              style={{
+                fontSize: 14,
+                color: "#fff",
+                background: "#ff453a",
+                border: "none",
+                borderRadius: 6,
+                padding: "8px 16px",
+                cursor: "pointer",
+                minHeight: 36,
+              }}
+            >
+              Confirm
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Messages ── */}
+      <div
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          padding: "16px 16px",
+          WebkitOverflowScrolling: "touch",
+        }}
+      >
+        {messages.length === 0 && historyLoaded && (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              height: "100%",
+              gap: 8,
+            }}
+          >
+            <p style={{ fontSize: 15, color: "#555" }}>End-to-end encrypted</p>
+            <p style={{ fontSize: 13, color: "#333" }}>Messages burn 5 minutes after being received</p>
+          </div>
+        )}
+
+        <div style={{ maxWidth: 800, margin: "0 auto" }}>
+          {messages.map((msg) => (
+            <div
+              key={msg.id}
+              style={{
+                display: "flex",
+                justifyContent: msg.mine ? "flex-end" : "flex-start",
+                marginBottom: 10,
+              }}
+            >
+              <div
+                style={{
+                  maxWidth: "80%",
+                  padding: "10px 14px",
+                  borderRadius: 18,
+                  borderBottomRightRadius: msg.mine ? 4 : 18,
+                  borderBottomLeftRadius: msg.mine ? 18 : 4,
+                  background: msg.mine ? "#1a3a5c" : "#1a1a1a",
+                  color: "#fff",
+                }}
+              >
+                {!msg.mine && (
+                  <div style={{ fontSize: 11, fontFamily: "monospace", color: "#3478f6", marginBottom: 3 }}>
+                    {msg.alias}
+                  </div>
+                )}
+                <div style={{ fontSize: 15, lineHeight: 1.5, wordBreak: "break-word" }}>
+                  {msg.text}
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "flex-end",
+                    marginTop: 4,
+                    gap: 4,
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: 11,
+                      color: msg.mine ? "rgba(255,255,255,0.35)" : "#444",
+                    }}
+                  >
+                    {timeAgo(msg.ts)}
+                  </span>
+                  {msg.burnAt !== null ? (
+                    <BurnTimer burnAt={msg.burnAt} />
+                  ) : !othersHere ? (
+                    <DeadDropTimer expiresAt={msg.expiresAt} />
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div ref={bottomRef} />
+      </div>
+
+      {/* ── Received bar ── */}
+      {unreadFromOthers.length > 0 && (
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            padding: "8px 16px",
+            borderTop: "1px solid #222",
+            flexShrink: 0,
+          }}
+        >
+          <button
+            onClick={() => acknowledge(unreadFromOthers.map((m) => m.id))}
+            style={{
+              fontSize: 13,
+              color: "#30d158",
+              background: "none",
+              border: "1px solid #1a3a2a",
+              borderRadius: 20,
+              padding: "8px 24px",
+              cursor: "pointer",
+              minHeight: 36,
+            }}
+          >
+            Received
+          </button>
+        </div>
+      )}
+
+      {/* ── Inactivity warning ── */}
+      {inactivityWarning && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 12,
+            padding: "10px 16px",
+            background: "#1a1a00",
+            borderTop: "1px solid #333300",
+            flexShrink: 0,
+          }}
+        >
+          <span style={{ fontSize: 13, color: "#ffcc00" }}>
+            Inactive — disconnecting soon
+          </span>
+          <button
+            onClick={resetInactivityTimer}
+            style={{
+              fontSize: 13,
+              color: "#ffcc00",
+              background: "none",
+              border: "1px solid #555500",
+              borderRadius: 20,
+              padding: "6px 16px",
+              cursor: "pointer",
+              minHeight: 32,
+            }}
+          >
+            Stay
+          </button>
+        </div>
+      )}
+
+      {/* ── Error ── */}
+      {error && (
+        <div style={{ textAlign: "center", padding: "8px 16px", fontSize: 14, color: "#ff453a", flexShrink: 0 }}>
+          {error}
+        </div>
+      )}
+
+      {/* ── Input ── */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          padding: "12px 16px",
+          paddingBottom: "calc(12px + env(safe-area-inset-bottom, 0px))",
+          flexShrink: 0,
+          background: "#000",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            width: "100%",
+            maxWidth: 560,
+            border: "1px solid #333",
+            borderRadius: 24,
+            background: "#111",
+            padding: "0 16px",
+          }}
+        >
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+            placeholder="Message"
+            maxLength={MAX_MESSAGE_LENGTH}
+            autoFocus
+            autoComplete="off"
+            spellCheck={false}
+            style={{
+              flex: 1,
+              background: "transparent",
+              border: "none",
+              fontSize: 16,
+              color: "#fff",
+              padding: "12px 0",
+              minHeight: 44,
+            }}
+          />
+          <button
+            onClick={send}
+            style={{
+              background: "none",
+              border: "none",
+              color: input.trim() ? "#3478f6" : "#333",
+              fontSize: 15,
+              fontWeight: 600,
+              cursor: "pointer",
+              padding: "8px 4px 8px 12px",
+              minHeight: 44,
+              minWidth: 44,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+            aria-label="Send"
+          >
+            Send
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const headerBtn: React.CSSProperties = {
+  fontSize: 14,
+  color: "#888",
+  background: "none",
+  border: "none",
+  cursor: "pointer",
+  padding: "8px 12px",
+  borderRadius: 6,
+  minHeight: 36,
+};

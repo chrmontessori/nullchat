@@ -1,0 +1,6 @@
+# nullchat Tor hidden service configuration
+# Copy this to /etc/tor/torrc or run: tor -f tor/torrc
+
+DataDirectory /var/lib/tor
+HiddenServiceDir /var/lib/tor/nullchat/
+HiddenServicePort 80 127.0.0.1:3000
