@@ -23,16 +23,15 @@ function generateUUID(): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function createSocket(roomId: string): any {
+function createSocket(roomId: string): WebSocket {
   if (WS_MODE === "standalone") {
     // Tor: connect to same origin via standalone server
     const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
     return new WebSocket(`${proto}//${window.location.host}/ws/${roomId}`);
   }
-  // Clearnet: connect to PartyKit (Durable Objects — persisted state)
-  const host = process.env.NEXT_PUBLIC_PARTYKIT_HOST || "nullchat.chrmontessori.partykit.dev";
-  return new PartySocket({ host, room: roomId });
+  // Clearnet: connect to shared WebSocket server
+  const wsHost = process.env.NEXT_PUBLIC_WS_HOST || "ws.nullchat.org";
+  return new WebSocket(`wss://${wsHost}/ws/${roomId}`);
 }
 
 /** Send JSON as a binary WebSocket frame (ArrayBuffer) */
@@ -229,8 +228,7 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const aliasRef = useRef(generateAlias());
   const sessionTokenRef = useRef(generateUUID());
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const wsRef = useRef<any>(null);
+  const wsRef = useRef<WebSocket | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const seenRef = useRef(new Set<string>());
   const keyRef = useRef(encryptionKey);
