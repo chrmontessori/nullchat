@@ -483,55 +483,131 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
   // Received button: only when alone picking up a dead drop (not already acked)
   const unreadFromOthers = deadDropAcked || othersHere ? [] : messages.filter((m) => !m.mine && m.burnAt === null);
 
-  // --- Steganographic mode: disguise as a Notes app ---
+  // --- Steganographic mode: disguise as Google Docs ---
   if (stegoMode) {
+    const stegoMenuItems = ["File", "Edit", "View", "Insert", "Format", "Tools", "Extensions", "Help"];
+    const stegoToolbar = ["↩", "↪", "🖨", "│", "100%", "│", "Normal text", "│", "Arial", "│", "11", "│", "B", "I", "U", "A"];
     return (
       <div
         style={{
           display: "flex",
           flexDirection: "column",
           height: "100dvh",
-          background: "#1c1c1e",
+          background: "#f9fbfd",
           position: "fixed" as const,
           top: 0, left: 0, right: 0, bottom: 0,
           overflow: "hidden",
+          fontFamily: "'Google Sans', Arial, sans-serif",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", borderBottom: "1px solid #2c2c2e", background: "#1c1c1e", flexShrink: 0 }}>
-          <span style={{ fontSize: 17, fontWeight: 600, color: "#fff" }}>Notes</span>
-          <button onClick={() => setStegoMode(false)} style={{ fontSize: 13, color: "#ff9f0a", background: "none", border: "none", cursor: "pointer", padding: "4px 8px" }}>Edit</button>
-        </div>
-        <div
-          onCopy={(e) => e.preventDefault()}
-          onCut={(e) => e.preventDefault()}
-          onContextMenu={(e) => e.preventDefault()}
-          style={{ flex: 1, overflowY: "auto", padding: "12px 16px", userSelect: "none", WebkitUserSelect: "none" }}
-        >
-          {messages.length === 0 && historyLoaded && (
-            <p style={{ fontSize: 15, color: "#8e8e93", textAlign: "center", marginTop: 40 }}>No notes yet</p>
-          )}
-          {messages.map((msg) => (
-            <div key={msg.id} style={{ padding: "10px 0", borderBottom: "1px solid #2c2c2e" }}>
-              <div style={{ fontSize: 15, color: "#fff", lineHeight: 1.5, wordBreak: "break-word" }}>{msg.text}</div>
-              <div style={{ fontSize: 11, color: "#8e8e93", marginTop: 4 }}>{new Date(msg.ts).toLocaleString()}</div>
+        {/* Title bar */}
+        <div style={{ display: "flex", alignItems: "center", padding: "8px 12px 0", background: "#fff", flexShrink: 0 }}>
+          <div style={{ width: 24, height: 32, marginRight: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ width: 20, height: 26, background: "#4285f4", borderRadius: 2, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ width: 10, height: 1, background: "#fff", boxShadow: "0 4px 0 #fff, 0 8px 0 #fff, 0 12px 0 #fff" }} />
             </div>
-          ))}
-          <div ref={bottomRef} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 18, fontWeight: 400, color: "#202124", lineHeight: 1.2 }}>Untitled document</div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ fontSize: 13, color: "#444746" }}>Editing</div>
+            <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#1a73e8", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <span style={{ fontSize: 14, color: "#fff", fontWeight: 500 }}>
+                {aliasRef.current.charAt(0).toUpperCase()}
+              </span>
+            </div>
+          </div>
         </div>
-        <div style={{ display: "flex", padding: "10px 16px", paddingBottom: "calc(10px + env(safe-area-inset-bottom, 0px))", background: "#1c1c1e", borderTop: "1px solid #2c2c2e", flexShrink: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", width: "100%", background: "#2c2c2e", borderRadius: 10, padding: "0 12px" }}>
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-              placeholder="Add a note..."
-              maxLength={MAX_MESSAGE_LENGTH}
-              autoFocus
-              autoComplete="off"
-              spellCheck={false}
-              style={{ flex: 1, background: "transparent", border: "none", fontSize: 16, color: "#fff", padding: "10px 0", minHeight: 40 }}
-            />
+
+        {/* Menu bar */}
+        <div style={{ display: "flex", alignItems: "center", padding: "2px 12px 2px 44px", background: "#fff", flexShrink: 0, gap: 2 }}>
+          {stegoMenuItems.map((item) => (
+            <span key={item} style={{ fontSize: 13, color: "#202124", padding: "4px 8px", borderRadius: 4, cursor: "default" }}>{item}</span>
+          ))}
+        </div>
+
+        {/* Toolbar */}
+        <div style={{ display: "flex", alignItems: "center", padding: "4px 12px 4px 44px", background: "#edf2fa", borderBottom: "1px solid #dadce0", flexShrink: 0, gap: 4, flexWrap: "nowrap", overflow: "hidden" }}>
+          {stegoToolbar.map((item, i) => (
+            item === "│" ? (
+              <div key={i} style={{ width: 1, height: 20, background: "#c4c7c5", margin: "0 2px", flexShrink: 0 }} />
+            ) : (
+              <span key={i} style={{
+                fontSize: ["B", "I", "U", "A"].includes(item) ? 14 : 12,
+                fontWeight: item === "B" ? 700 : ["I"].includes(item) ? 400 : 400,
+                fontStyle: item === "I" ? "italic" : "normal",
+                textDecoration: item === "U" ? "underline" : "none",
+                color: "#444746",
+                padding: "4px 6px",
+                borderRadius: 4,
+                cursor: "default",
+                whiteSpace: "nowrap",
+                flexShrink: 0,
+              }}>{item}</span>
+            )
+          ))}
+        </div>
+
+        {/* Document body */}
+        <div style={{ flex: 1, overflowY: "auto", background: "#f9fbfd", padding: "20px 0" }}>
+          <div
+            onCopy={(e) => e.preventDefault()}
+            onCut={(e) => e.preventDefault()}
+            onContextMenu={(e) => e.preventDefault()}
+            style={{
+              maxWidth: 816,
+              minHeight: 1056,
+              margin: "0 auto",
+              background: "#fff",
+              boxShadow: "0 0 0 1px #dadce0",
+              padding: "72px 96px",
+              userSelect: "none",
+              WebkitUserSelect: "none",
+            }}
+          >
+            {messages.length === 0 && historyLoaded && (
+              <p style={{ fontSize: 15, color: "#80868b", fontFamily: "Arial, sans-serif" }}>Start typing...</p>
+            )}
+            {messages.map((msg) => (
+              <p key={msg.id} style={{
+                fontSize: 15,
+                lineHeight: 1.75,
+                color: "#202124",
+                fontFamily: "Arial, sans-serif",
+                marginBottom: 12,
+                wordBreak: "break-word",
+              }}>
+                {msg.text}
+              </p>
+            ))}
+            {/* Input disguised as cursor / active typing area */}
+            <div style={{ position: "relative" }}>
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+                placeholder=""
+                maxLength={MAX_MESSAGE_LENGTH}
+                autoFocus
+                autoComplete="off"
+                spellCheck={false}
+                style={{
+                  width: "100%",
+                  background: "transparent",
+                  border: "none",
+                  fontSize: 15,
+                  lineHeight: 1.75,
+                  color: "#202124",
+                  fontFamily: "Arial, sans-serif",
+                  padding: 0,
+                  outline: "none",
+                  caretColor: "#202124",
+                }}
+              />
+            </div>
+            <div ref={bottomRef} />
           </div>
         </div>
       </div>
