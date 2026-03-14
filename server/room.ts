@@ -153,13 +153,6 @@ export class ChatRoom {
 
     this.pruneExpired();
 
-    // If others are now here, start burn timers on all unread messages
-    if (this.connections.size > 1) {
-      for (const msg of this.messages) {
-        if (msg.readAt === null) this.startBurnTimer(msg);
-      }
-    }
-
     // Send history
     const history = this.messages.slice(-MAX_BUFFER).map((m) => ({
       payload: m.payload,
@@ -316,10 +309,6 @@ export class ChatRoom {
     );
 
     this.send(conn, JSON.stringify({ type: "confirmed", id }));
-
-    if (this.connections.size > 1) {
-      this.startBurnTimer(storedMsg);
-    }
   }
 
   onClose(connId: string) {
