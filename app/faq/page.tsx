@@ -126,7 +126,7 @@ Both parties must agree to enable the toggle — it works the same way as agreei
   },
   {
     title: "What about IP addresses?",
-    body: `On the clearnet (nullchat.org), the application is hosted on Vercel's edge network. Your IP address is handled at the infrastructure layer and is never read, logged, or stored by the application code. The server code does not access IP headers. We have no mechanism to identify you by network address.
+    body: `On the clearnet (nullchat.org), the application is hosted on Cloudflare's edge network. Your IP address is handled at the infrastructure layer and is never read, logged, or stored by the application code. The server code does not access IP headers. We have no mechanism to identify you by network address.
 
 On the Tor hidden service (.onion), your IP address is never visible to the server at all — Tor's onion routing ensures complete network-level anonymity. The server only sees connections from the Tor network, with no way to trace them back to you.`,
   },
