@@ -269,12 +269,13 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
     };
   }, []);
 
-  // Steganographic mode: triple-tap Shift to toggle
+  // Steganographic mode: triple-tap period (.) while holding Ctrl/Cmd to toggle
   useEffect(() => {
     let tapCount = 0;
     let tapTimer: ReturnType<typeof setTimeout> | null = null;
     const onStego = (e: KeyboardEvent) => {
-      if (e.key !== "Shift") return;
+      if (e.key !== "." || !(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
       tapCount++;
       if (tapTimer) clearTimeout(tapTimer);
       if (tapCount >= 3) {

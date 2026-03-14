@@ -168,9 +168,9 @@ Decoy traffic defeats traffic analysis. Without it, an observer monitoring netwo
   },
   {
     title: "What is steganographic mode?",
-    body: `Steganographic mode disguises the nullchat interface as a document editor. Triple-tap the Shift key to activate it. The entire UI transforms — the dark chat interface is replaced with a familiar-looking document editing interface complete with toolbar and menu bar. Messages appear as paragraphs in the document body, and your input blends in as active typing. All encryption, burn timers, and security features continue to operate normally underneath.
+    body: `Steganographic mode disguises the nullchat interface as a document editor. Press Ctrl+. (or Cmd+. on Mac) three times rapidly to activate it. The entire UI transforms — the dark chat interface is replaced with a familiar-looking document editing interface complete with toolbar and menu bar. Messages appear as paragraphs in the document body, and your input blends in as active typing. All encryption, burn timers, and security features continue to operate normally underneath.
 
-This is useful if someone is looking over your shoulder or if your screen is visible to others. At a glance, it looks like you're editing a document, not having an encrypted conversation. Triple-tap Shift again to return to the normal chat view.`,
+This is useful if someone is looking over your shoulder or if your screen is visible to others. At a glance, it looks like you're editing a document, not having an encrypted conversation. Press Ctrl+. (or Cmd+.) three times again to return to the normal chat view.`,
   },
   {
     title: "Does nullchat auto-clear the clipboard?",
