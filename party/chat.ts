@@ -158,15 +158,6 @@ export default class ChatRoom implements Party.Server {
 
     await this.pruneExpired();
 
-    // If others are now here, start burn timers on all unread messages
-    if (count > 1) {
-      for (const msg of this.messages) {
-        if (msg.readAt === null) {
-          await this.startBurnTimer(msg);
-        }
-      }
-    }
-
     // Send history with burn info
     const history = this.messages.slice(-MAX_BUFFER).map((m) => ({
       payload: m.payload,
@@ -322,12 +313,6 @@ export default class ChatRoom implements Party.Server {
     }
 
     sender.send(JSON.stringify({ type: "confirmed", id }));
-
-    // If others are in the room, message is read live — start 5min burn
-    const connectionCount = [...this.room.getConnections()].length;
-    if (connectionCount > 1) {
-      await this.startBurnTimer(storedMsg);
-    }
 
     await this.persistState();
   }
