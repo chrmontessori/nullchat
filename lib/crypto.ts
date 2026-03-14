@@ -11,7 +11,6 @@ export interface MessageEnvelope {
   text: string;
   ts: number;
   nop?: boolean; // true = decoy traffic, discard after decryption
-  verify?: string; // safety number verification payload
 }
 
 // Fixed plaintext size before encryption.
@@ -57,19 +56,6 @@ export async function deriveKey(password: string): Promise<Uint8Array> {
     bytes[i / 2] = parseInt(hashHex.substring(i, i + 2), 16);
   }
   return bytes;
-}
-
-/**
- * Derive a short safety number from the encryption key alone.
- * Purely client-side — the server cannot influence this value.
- * Both users with the same shared secret will see the same number.
- */
-export async function deriveFingerprint(key: Uint8Array): Promise<string> {
-  const hash = await crypto.subtle.digest("SHA-256", key.buffer as ArrayBuffer);
-  const bytes = new Uint8Array(hash).slice(0, 5);
-  return Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, "0").toUpperCase())
-    .join(" ");
 }
 
 function padMessage(plaintext: string): Uint8Array {
@@ -126,8 +112,8 @@ export function decrypt(
     if (!padded) return null;
     const plaintext = unpadMessage(padded);
     const envelope: MessageEnvelope = JSON.parse(plaintext);
-    // Discard decoy/no-op messages (but not verification messages)
-    if (envelope.nop && !envelope.verify) return null;
+    // Discard decoy/no-op messages
+    if (envelope.nop) return null;
     return envelope;
   } catch {
     return null;

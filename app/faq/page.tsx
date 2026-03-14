@@ -139,14 +139,6 @@ On the Tor hidden service (.onion), your IP address is never visible to the serv
     body: `By design. nullchat is text-only — no links, images, file attachments, or media of any kind can be sent or rendered. This is a deliberate security decision, not a limitation. Clickable links and embedded media are the primary attack surface for zero-day exploits used by commercial spyware like Pegasus, Predator, and similar surveillance tools. A single malicious link or file can silently compromise an entire device. By stripping the chat down to plaintext only, nullchat eliminates this attack vector entirely. There is nothing to click, nothing to download, and nothing to render — which means nothing to exploit.`,
   },
   {
-    title: "What is the safety number?",
-    body: `The safety number is a short code (like "4A 7F 2B 91 C3") displayed in the chat header. It is derived purely from your encryption key — the server has no influence over it. Anyone with the same shared secret will see the same number.
-
-To verify, click the masked dots to reveal your number, then click again to open the verification input. Ask your partner for their number through a separate channel (text, call, in person) and type it in. Your partner does the same with your number. If both sides match, a green checkmark appears — confirming you both derived the same key and are in the same encrypted room.
-
-If the numbers don't match, something is wrong — you may have entered different secrets, or someone could be intercepting the connection.`,
-  },
-  {
     title: "Can I copy or screenshot messages?",
     body: `nullchat actively discourages capturing message content. Text selection and copying are disabled in the chat area, right-click context menus are blocked, and common screenshot keyboard shortcuts are intercepted. The browser's Screen Capture API is also blocked via Permissions-Policy headers, preventing web-based screen recording tools from capturing the page.
 
