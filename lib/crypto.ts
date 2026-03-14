@@ -59,12 +59,18 @@ export async function deriveKey(password: string): Promise<Uint8Array> {
 }
 
 /**
- * Derive a short safety number from the encryption key for out-of-band
- * verification. Both users should see the same fingerprint — if they
- * don't, someone may be in a different room (wrong secret or MITM).
+ * Derive a short safety number from the encryption key and a server-provided
+ * room nonce. The nonce is regenerated each time a room is created, so the
+ * safety number changes when a room dies and is re-entered with the same
+ * secret. Both users should see the same fingerprint — if they don't,
+ * someone may be in a different room (wrong secret or MITM).
  */
-export async function deriveFingerprint(key: Uint8Array): Promise<string> {
-  const hash = await crypto.subtle.digest("SHA-256", key.buffer as ArrayBuffer);
+export async function deriveFingerprint(key: Uint8Array, roomNonce: string): Promise<string> {
+  const nonceBytes = new TextEncoder().encode(roomNonce);
+  const combined = new Uint8Array(key.length + nonceBytes.length);
+  combined.set(key);
+  combined.set(nonceBytes, key.length);
+  const hash = await crypto.subtle.digest("SHA-256", combined.buffer as ArrayBuffer);
   const bytes = new Uint8Array(hash).slice(0, 5);
   return Array.from(bytes)
     .map((b) => b.toString(16).padStart(2, "0").toUpperCase())

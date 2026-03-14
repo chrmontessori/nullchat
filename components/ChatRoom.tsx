@@ -7,6 +7,7 @@ import {
   decrypt,
   generateAlias,
   roundTimestamp,
+  deriveFingerprint,
   type MessageEnvelope,
 } from "@/lib/crypto";
 import type { ServerEvent } from "@/lib/protocol";
@@ -41,7 +42,6 @@ function wsSendJSON(ws: WebSocket, obj: unknown) {
 interface Props {
   roomId: string;
   encryptionKey: Uint8Array;
-  fingerprint: string;
   torIsolated: boolean;
   onLeave: () => void;
 }
@@ -141,7 +141,7 @@ function timeAgo(ts: number): string {
   return "1d+";
 }
 
-export default function ChatRoom({ roomId, encryptionKey, fingerprint, torIsolated, onLeave }: Props) {
+export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [othersHere, setOthersHere] = useState(false);
@@ -158,6 +158,7 @@ export default function ChatRoom({ roomId, encryptionKey, fingerprint, torIsolat
   const keyRef = useRef(encryptionKey);
   keyRef.current = encryptionKey;
 
+  const [fingerprint, setFingerprint] = useState("");
   const [showFingerprint, setShowFingerprint] = useState(false);
   const [stegoMode, setStegoMode] = useState(false);
   const [inactivityWarning, setInactivityWarning] = useState(false);
@@ -197,54 +198,73 @@ export default function ChatRoom({ roomId, encryptionKey, fingerprint, torIsolat
     };
   }, [resetInactivityTimer]);
 
-  // Clipboard auto-clear: if anything is copied, wipe clipboard after 30s
+  // Clipboard auto-clear: wipe clipboard 15s after copy and on tab close
   useEffect(() => {
     let clearTimer: ReturnType<typeof setTimeout> | null = null;
     const onCopy = () => {
       if (clearTimer) clearTimeout(clearTimer);
       clearTimer = setTimeout(() => {
         navigator.clipboard?.writeText("").catch(() => {});
-      }, 30000);
+      }, 15000);
+    };
+    const onUnload = () => {
+      navigator.clipboard?.writeText("").catch(() => {});
     };
     document.addEventListener("copy", onCopy);
+    window.addEventListener("beforeunload", onUnload);
     return () => {
       document.removeEventListener("copy", onCopy);
+      window.removeEventListener("beforeunload", onUnload);
       if (clearTimer) clearTimeout(clearTimer);
     };
   }, []);
 
   // Panic key: triple-tap Escape to instantly wipe session and redirect
   useEffect(() => {
+    let panicked = false;
     let escCount = 0;
     let escTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const doPanic = () => {
+      panicked = true;
+      // Terminate session server-side
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsSendJSON(wsRef.current, { type: "terminate" });
+      }
+      wsRef.current?.close();
+      // Wipe encryption key from memory
+      keyRef.current.fill(0);
+      // Wipe DOM content
+      document.body.innerHTML = "";
+      document.title = "Google";
+      // Clear all browser storage
+      try { sessionStorage.clear(); } catch {}
+      try { localStorage.clear(); } catch {}
+      // Clear clipboard
+      navigator.clipboard?.writeText("").catch(() => {});
+      // Redirect — replace history so back button can't return
+      window.location.replace("https://www.google.com");
+    };
+
     const onPanic = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       escCount++;
       if (escTimer) clearTimeout(escTimer);
-      if (escCount >= 3) {
-        // Terminate session server-side
-        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-          wsSendJSON(wsRef.current, { type: "terminate" });
-        }
-        wsRef.current?.close();
-        // Wipe DOM content
-        document.body.innerHTML = "";
-        document.title = "Google";
-        // Clear all browser storage
-        try { sessionStorage.clear(); } catch {}
-        try { localStorage.clear(); } catch {}
-        // Clear clipboard
-        navigator.clipboard?.writeText("").catch(() => {});
-        // Redirect to benign page
-        window.location.replace("https://www.google.com");
-        return;
-      }
-      // Reset counter after 800ms if not enough taps
+      if (escCount >= 3) { doPanic(); return; }
       escTimer = setTimeout(() => { escCount = 0; }, 800);
     };
+
+    // If the browser restores the page from bfcache after a panic,
+    // immediately redirect again so the chat is never visible.
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted && panicked) doPanic();
+    };
+
     window.addEventListener("keydown", onPanic, { capture: true });
+    window.addEventListener("pageshow", onPageShow);
     return () => {
       window.removeEventListener("keydown", onPanic, { capture: true });
+      window.removeEventListener("pageshow", onPageShow);
       if (escTimer) clearTimeout(escTimer);
     };
   }, []);
@@ -341,6 +361,10 @@ export default function ChatRoom({ roomId, encryptionKey, fingerprint, torIsolat
           )
         );
       } else if (data.type === "history") {
+        // Derive safety number from encryption key + server room nonce
+        if (data.roomNonce) {
+          deriveFingerprint(key, data.roomNonce).then(setFingerprint);
+        }
         const dec: ChatMessage[] = [];
         for (const msg of data.messages) {
           if (seenRef.current.has(msg.id)) continue;
@@ -380,8 +404,9 @@ export default function ChatRoom({ roomId, encryptionKey, fingerprint, torIsolat
 
     // --- Decoy traffic ---
     // Send encrypted no-op messages at random intervals to mask
-    // when real communication happens. Server treats them as normal
-    // messages; recipient decrypts and discards (nop flag).
+    // when real communication happens. Server relays but does not
+    // store decoys, preserving dead-drop TTL and buffer integrity.
+    // Recipients decrypt and discard via the nop flag.
     const scheduleDecoy = () => {
       const delay = 10000 + Math.floor(Math.random() * 50000); // 10–60s
       return setTimeout(() => {
@@ -393,7 +418,7 @@ export default function ChatRoom({ roomId, encryptionKey, fingerprint, torIsolat
             nop: true,
           };
           const payload = encrypt(decoy, keyRef.current);
-          wsSendJSON(ws, { type: "message", payload });
+          wsSendJSON(ws, { type: "decoy", payload });
         }
         decoyTimer = scheduleDecoy();
       }, delay);
@@ -420,11 +445,15 @@ export default function ChatRoom({ roomId, encryptionKey, fingerprint, torIsolat
     setDeadDropAcked(true);
   };
 
-  const leave = () => { wsRef.current?.close(); onLeave(); };
+  // Zero-fill encryption key to minimize time it remains in memory
+  const wipeKey = () => { keyRef.current.fill(0); };
+
+  const leave = () => { wsRef.current?.close(); wipeKey(); onLeave(); };
 
   const terminate = () => {
     if (wsRef.current) wsSendJSON(wsRef.current, { type: "terminate" });
     setShowTerminate(false);
+    wipeKey();
     onLeave();
   };
 

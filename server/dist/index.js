@@ -24,6 +24,7 @@ const MIME = {
 };
 const ONION_HOST = "5ril7wg5rvrpc25l2vjkwufmum26gwzrk5hf2mvfjkdrsyj3p54a52yd.onion";
 const STATIC_HEADERS = {
+    "Cache-Control": "no-store, no-cache, must-revalidate",
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "no-referrer",
@@ -105,8 +106,41 @@ function getOrCreateRoom(roomId) {
 }
 // --- HTTP + WebSocket server ---
 const httpServer = (0, http_1.createServer)(serveStatic);
-const wss = new ws_1.WebSocketServer({ noServer: true });
+const wss = new ws_1.WebSocketServer({ noServer: true, perMessageDeflate: false });
+// Per-IP rate limiting for WebSocket upgrades (max 5 connections per minute)
+const upgradeAttempts = new Map();
+const WS_UPGRADE_LIMIT = 5;
+const WS_UPGRADE_WINDOW = 60_000; // 1 minute
+function isUpgradeRateLimited(req) {
+    // Use a generic key since we don't log real IPs
+    const key = req.headers["x-forwarded-for"]?.toString().split(",")[0]?.trim()
+        || req.socket.remoteAddress
+        || "unknown";
+    const now = Date.now();
+    const attempts = (upgradeAttempts.get(key) || []).filter((t) => now - t < WS_UPGRADE_WINDOW);
+    if (attempts.length >= WS_UPGRADE_LIMIT)
+        return true;
+    attempts.push(now);
+    upgradeAttempts.set(key, attempts);
+    return false;
+}
+// Periodically clean up stale entries
+setInterval(() => {
+    const now = Date.now();
+    for (const [key, attempts] of upgradeAttempts) {
+        const valid = attempts.filter((t) => now - t < WS_UPGRADE_WINDOW);
+        if (valid.length === 0)
+            upgradeAttempts.delete(key);
+        else
+            upgradeAttempts.set(key, valid);
+    }
+}, 60_000);
 httpServer.on("upgrade", (req, socket, head) => {
+    // Rate limit WebSocket upgrades to prevent connection flooding
+    if (isUpgradeRateLimited(req)) {
+        socket.destroy();
+        return;
+    }
     // Tor-only mode: reject non-.onion WebSocket upgrades
     if (TOR_ONLY && !isTorConnection(req)) {
         socket.destroy();

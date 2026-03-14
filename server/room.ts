@@ -1,5 +1,5 @@
 import type { WebSocket } from "ws";
-import { randomUUID } from "crypto";
+import { randomUUID, randomBytes } from "crypto";
 
 interface StoredMessage {
   id: string;
@@ -21,10 +21,11 @@ const BURN_TTL = 5 * 60 * 1000;
 const MAX_CONNECTIONS = 50;
 const RATE_LIMIT_MS = 1000;
 const MAX_BUFFER = 50;
-const MAX_PAYLOAD_SIZE = 8192;
+const MAX_PAYLOAD_SIZE = 12000; // 8192 padded plaintext + NaCl overhead + base64 ≈ 11KB
 const ROOM_IDLE_TTL = 5 * 60 * 1000; // garbage collect empty rooms after 5 min
 
 export class ChatRoom {
+  private readonly roomNonce = randomBytes(16).toString("hex");
   private messages: StoredMessage[] = [];
   private rateLimits = new Map<string, number>();
   private burnTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -111,11 +112,20 @@ export class ChatRoom {
     this.burnTimers.set(msg.id, timer);
   }
 
+  private presenceTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // Delay presence broadcasts by a random 5–15 seconds to prevent
+  // network observers from correlating exact join/leave timestamps.
   private broadcastPresence() {
-    const count = this.connections.size;
-    this.broadcast(
-      JSON.stringify({ type: "presence", othersHere: count > 1 })
-    );
+    if (this.presenceTimer) clearTimeout(this.presenceTimer);
+    const delay = 5000 + Math.floor(Math.random() * 10000);
+    this.presenceTimer = setTimeout(() => {
+      this.presenceTimer = null;
+      const count = this.connections.size;
+      this.broadcast(
+        JSON.stringify({ type: "presence", othersHere: count > 1 })
+      );
+    }, delay);
   }
 
   private resetIdleTimer() {
@@ -136,6 +146,7 @@ export class ChatRoom {
     for (const timer of this.burnTimers.values()) clearTimeout(timer);
     this.burnTimers.clear();
     if (this.idleTimer) clearTimeout(this.idleTimer);
+    if (this.presenceTimer) clearTimeout(this.presenceTimer);
   }
 
   onConnect(ws: WebSocket): string {
@@ -168,7 +179,10 @@ export class ChatRoom {
       burnAt: m.readAt !== null ? m.expiresAt : null,
       expiresAt: m.expiresAt,
     }));
-    this.send(conn, JSON.stringify({ type: "history", messages: history }));
+    this.send(conn, JSON.stringify({ type: "history", messages: history, roomNonce: this.roomNonce }));
+    // Send immediate presence to the connecting client so they know the room state
+    this.send(conn, JSON.stringify({ type: "presence", othersHere: this.connections.size > 1 }));
+    // Delayed broadcast to others (metadata protection)
     this.broadcastPresence();
 
     return connId;
@@ -223,6 +237,24 @@ export class ChatRoom {
 
       this.rateLimits.delete(connId);
       conn.ws.close();
+      return;
+    }
+
+    // Decoy traffic: relay to other clients but do NOT store, rate-limit, or
+    // affect TTL/dead-drop logic. Network observers still see identical frames.
+    if (parsed.type === "decoy" && parsed.payload) {
+      if (parsed.payload.length > MAX_PAYLOAD_SIZE) return;
+      for (const c of this.getConnections()) {
+        if (c.id !== connId && c.ws.readyState === 1) {
+          c.ws.send(Buffer.from(JSON.stringify({
+            type: "message",
+            payload: parsed.payload,
+            id: randomUUID(),
+            ts: Date.now(),
+            expiresAt: Date.now() + 60000, // short expiry, client discards via nop
+          })));
+        }
+      }
       return;
     }
 

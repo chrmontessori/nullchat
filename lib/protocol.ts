@@ -30,6 +30,7 @@ export interface ServerMessage {
 export interface ServerHistory {
   type: "history";
   messages: { payload: string; id: string; ts: number; burnAt: number | null; expiresAt: number }[];
+  roomNonce: string; // random hex, regenerated each time the room is created
 }
 
 export interface ServerPresence {
