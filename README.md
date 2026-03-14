@@ -89,7 +89,7 @@ After deploying to `/opt/nullchat`, run the hardening script as root:
 bash /opt/nullchat/deploy/harden.sh
 ```
 
-This disables swap, creates the service user, installs systemd units (with tmpfs working directory, sandboxing, and 6-hour restart timer), and disables core dumps.
+This disables swap, creates the service user, installs the systemd unit (with tmpfs working directory and sandboxing), and disables core dumps.
 
 To enable Tor-only mode (reject all non-Tor connections):
 
@@ -112,7 +112,6 @@ The production server runs with:
 - Memory-only tmpfs working directory (nothing touches disk)
 - Swap disabled (prevents memory contents leaking to disk)
 - Core dumps disabled system-wide
-- Scheduled 6-hour restarts to clear accumulated in-memory state
 - Connection padding (random-length dummy frames at random intervals defeat traffic analysis)
 - WebSocket compression disabled (prevents CRIME-style compression side-channel attacks)
 - WebSocket upgrade rate limiting (5 connections/min per IP)

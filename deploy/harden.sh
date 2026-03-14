@@ -6,14 +6,14 @@ set -euo pipefail
 echo "=== nullchat server hardening ==="
 
 # --- Disable swap (prevents memory contents leaking to disk) ---
-echo "[1/5] Disabling swap..."
+echo "[1/4] Disabling swap..."
 swapoff -a
 # Remove swap entries from fstab so it stays off after reboot
 sed -i '/\sswap\s/d' /etc/fstab
 echo "  Swap disabled permanently."
 
 # --- Create unprivileged service user ---
-echo "[2/5] Creating nullchat user..."
+echo "[2/4] Creating nullchat user..."
 if ! id -u nullchat &>/dev/null; then
   useradd --system --no-create-home --shell /usr/sbin/nologin nullchat
   echo "  User created."
@@ -21,22 +21,19 @@ else
   echo "  User already exists."
 fi
 
-# --- Install systemd units ---
-echo "[3/5] Installing systemd units..."
+# --- Install systemd unit ---
+echo "[3/4] Installing systemd unit..."
 cp /opt/nullchat/deploy/nullchat.service /etc/systemd/system/
-cp /opt/nullchat/deploy/nullchat-restart.service /etc/systemd/system/
-cp /opt/nullchat/deploy/nullchat-restart.timer /etc/systemd/system/
 systemctl daemon-reload
-echo "  Units installed."
+echo "  Unit installed."
 
-# --- Enable and start services ---
-echo "[4/5] Enabling services..."
+# --- Enable and start service ---
+echo "[3/4] Enabling service..."
 systemctl enable --now nullchat.service
-systemctl enable --now nullchat-restart.timer
-echo "  Services running."
+echo "  Service running."
 
 # --- Prevent core dumps system-wide ---
-echo "[5/5] Disabling core dumps..."
+echo "[4/4] Disabling core dumps..."
 echo "* hard core 0" > /etc/security/limits.d/99-no-coredump.conf
 echo "kernel.core_pattern=|/bin/false" > /etc/sysctl.d/99-no-coredump.conf
 sysctl -p /etc/sysctl.d/99-no-coredump.conf 2>/dev/null || true
@@ -47,7 +44,6 @@ echo "=== Hardening complete ==="
 echo ""
 echo "Verify:"
 echo "  systemctl status nullchat"
-echo "  systemctl list-timers nullchat-restart.timer"
 echo "  swapon --show  (should be empty)"
 echo "  cat /proc/sys/kernel/core_pattern  (should be |/bin/false)"
 echo ""

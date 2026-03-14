@@ -9,8 +9,7 @@ User=nullchat
 Group=nullchat
 
 # Application
-WorkingDirectory=/tmp/nullchat-runtime
-ExecStartPre=/bin/mkdir -p /tmp/nullchat-runtime
+WorkingDirectory=/opt/nullchat
 ExecStart=/usr/bin/node /opt/nullchat/server/dist/index.js
 Environment=NODE_ENV=production
 Environment=PORT=3000
@@ -23,10 +22,6 @@ Environment=PORT=3000
 # directory lives entirely in RAM — nothing touches disk.
 PrivateTmp=strict
 
-# --- Scheduled restarts to clear accumulated in-memory state ---
-# Restart every 6 hours. The timer (nullchat-restart.timer) triggers
-# this automatically; RuntimeMaxSec is the hard ceiling.
-RuntimeMaxSec=21600
 Restart=always
 RestartSec=2
 
