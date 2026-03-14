@@ -160,6 +160,10 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
 
   const [fingerprint, setFingerprint] = useState("");
   const [showFingerprint, setShowFingerprint] = useState(false);
+  const [showVerifyInput, setShowVerifyInput] = useState(false);
+  const [verifyInput, setVerifyInput] = useState("");
+  const [verifiedByMe, setVerifiedByMe] = useState(false);
+  const [verifiedByPartner, setVerifiedByPartner] = useState(false);
   const [stegoMode, setStegoMode] = useState(false);
   const [inactivityWarning, setInactivityWarning] = useState(false);
   const lastActivityRef = useRef(Date.now());
@@ -182,6 +186,11 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
       onLeave();
     }, INACTIVITY_TIMEOUT);
   }, [onLeave]);
+
+  // Derive safety number from encryption key (purely client-side, no server input)
+  useEffect(() => {
+    deriveFingerprint(encryptionKey).then(setFingerprint);
+  }, [encryptionKey]);
 
   // Start inactivity timer on mount, listen for user activity
   useEffect(() => {
@@ -385,10 +394,6 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
           )
         );
       } else if (data.type === "history") {
-        // Derive safety number from encryption key + server room nonce
-        if (data.roomNonce) {
-          deriveFingerprint(key, data.roomNonce).then(setFingerprint);
-        }
         const dec: ChatMessage[] = [];
         for (const msg of data.messages) {
           if (seenRef.current.has(msg.id)) continue;
@@ -412,6 +417,17 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
         if (seenRef.current.has(data.id)) return;
         const env = decrypt(data.payload, key);
         if (env) {
+          // Handle verification messages
+          if (env.verify) {
+            seenRef.current.add(data.id);
+            deriveFingerprint(key).then((local) => {
+              // Normalize: strip spaces, uppercase
+              const theirs = env.verify!.replace(/\s+/g, "").toUpperCase();
+              const ours = local.replace(/\s+/g, "").toUpperCase();
+              if (theirs === ours) setVerifiedByPartner(true);
+            });
+            return;
+          }
           seenRef.current.add(data.id);
           setMessages((prev) => [...prev, {
             id: data.id,
@@ -461,6 +477,29 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
     wsSendJSON(wsRef.current, { type: "message", payload });
     setInput("");
     setDeadDropAcked(true);
+  };
+
+  const sendVerification = () => {
+    const typed = verifyInput.trim();
+    if (!typed || !wsRef.current) return;
+    // Send as encrypted decoy (relayed, not stored)
+    const envelope: MessageEnvelope = {
+      alias: aliasRef.current,
+      text: "",
+      ts: roundTimestamp(Date.now()),
+      nop: true,
+      verify: typed,
+    };
+    const payload = encrypt(envelope, encryptionKey);
+    wsSendJSON(wsRef.current, { type: "decoy", payload });
+    // Check locally: does what I typed match my own fingerprint?
+    deriveFingerprint(encryptionKey).then((local) => {
+      const mine = typed.replace(/\s+/g, "").toUpperCase();
+      const ours = local.replace(/\s+/g, "").toUpperCase();
+      if (mine === ours) setVerifiedByMe(true);
+    });
+    setVerifyInput("");
+    setShowVerifyInput(false);
   };
 
   const acknowledge = (ids: string[]) => {
@@ -652,12 +691,22 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
           </span>
           <div style={{ width: 1, height: 16, background: "#333", flexShrink: 0 }} />
           <button
-            onClick={() => setShowFingerprint((v) => !v)}
-            title="Safety number — verify with your contact"
+            onClick={() => {
+              if (!showFingerprint) {
+                setShowFingerprint(true);
+              } else {
+                setShowVerifyInput((v) => !v);
+              }
+            }}
+            title="Safety number — click to verify"
             style={{
               fontSize: 11,
               fontFamily: "monospace",
-              color: showFingerprint ? "#30d158" : "#444",
+              color: verifiedByMe && verifiedByPartner
+                ? "#30d158"
+                : showFingerprint
+                  ? "#fff"
+                  : "#444",
               background: "none",
               border: "none",
               cursor: "pointer",
@@ -665,7 +714,9 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
               letterSpacing: "0.1em",
             }}
           >
-            {showFingerprint ? fingerprint : "●●●●●"}
+            {showFingerprint
+              ? `${fingerprint}${verifiedByMe && verifiedByPartner ? " ✓" : verifiedByPartner ? " ½" : ""}`
+              : "●●●●●"}
           </button>
           <div style={{ width: 1, height: 16, background: "#333", flexShrink: 0 }} />
           <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
@@ -719,6 +770,73 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
           </button>
         </div>
       </div>
+
+      {/* ── Verification input ── */}
+      {showVerifyInput && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            padding: "8px 16px",
+            borderBottom: "1px solid #222",
+            background: "#0a0a0a",
+            flexShrink: 0,
+            gap: 8,
+          }}
+        >
+          <span style={{ fontSize: 12, color: "#666", whiteSpace: "nowrap" }}>
+            Type your partner&apos;s number:
+          </span>
+          <input
+            type="text"
+            value={verifyInput}
+            onChange={(e) => setVerifyInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); sendVerification(); } }}
+            placeholder="XX XX XX XX XX"
+            autoFocus
+            autoComplete="off"
+            spellCheck={false}
+            style={{
+              flex: 1,
+              background: "#111",
+              border: "1px solid #333",
+              borderRadius: 6,
+              fontSize: 13,
+              fontFamily: "monospace",
+              color: "#fff",
+              padding: "6px 10px",
+              letterSpacing: "0.1em",
+              maxWidth: 200,
+            }}
+          />
+          <button
+            onClick={sendVerification}
+            style={{
+              fontSize: 13,
+              color: "#3478f6",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              padding: "6px 12px",
+            }}
+          >
+            Verify
+          </button>
+          <button
+            onClick={() => { setShowVerifyInput(false); setVerifyInput(""); }}
+            style={{
+              fontSize: 13,
+              color: "#666",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              padding: "6px 8px",
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
 
       {/* ── Terminate confirmation ── */}
       {showTerminate && (

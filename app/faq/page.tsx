@@ -140,11 +140,11 @@ On the Tor hidden service (.onion), your IP address is never visible to the serv
   },
   {
     title: "What is the safety number?",
-    body: `The safety number is a short code (like "4A 7F 2B 91 C3") displayed in the chat header. It is derived from your encryption key combined with a server-generated room nonce — if you and your contact both tap the masked dots in the header bar and see the same code, you can be confident you're in the same room with the same key.
+    body: `The safety number is a short code (like "4A 7F 2B 91 C3") displayed in the chat header. It is derived purely from your encryption key — the server has no influence over it. Anyone with the same shared secret will see the same number.
 
-The safety number changes each time a room is created. If a room dies and you re-enter with the same secret, you'll get a new safety number. This prevents stale reuse and ensures the code reflects your current session, not a previous one.
+To verify, click the masked dots to reveal your number, then click again to open the verification input. Ask your partner for their number through a separate channel (text, call, in person) and type it in. Your partner does the same with your number. If both sides match, a green checkmark appears — confirming you both derived the same key and are in the same encrypted room.
 
-If the numbers don't match, something is wrong — you may have entered different secrets, or in a worst case, someone could be intercepting the connection. The safety number is a quick way to verify your session without revealing your shared secret.`,
+If the numbers don't match, something is wrong — you may have entered different secrets, or someone could be intercepting the connection.`,
   },
   {
     title: "Can I copy or screenshot messages?",

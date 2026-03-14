@@ -11,6 +11,7 @@ export interface MessageEnvelope {
   text: string;
   ts: number;
   nop?: boolean; // true = decoy traffic, discard after decryption
+  verify?: string; // safety number verification payload
 }
 
 // Fixed plaintext size before encryption.
@@ -59,18 +60,12 @@ export async function deriveKey(password: string): Promise<Uint8Array> {
 }
 
 /**
- * Derive a short safety number from the encryption key and a server-provided
- * room nonce. The nonce is regenerated each time a room is created, so the
- * safety number changes when a room dies and is re-entered with the same
- * secret. Both users should see the same fingerprint — if they don't,
- * someone may be in a different room (wrong secret or MITM).
+ * Derive a short safety number from the encryption key alone.
+ * Purely client-side — the server cannot influence this value.
+ * Both users with the same shared secret will see the same number.
  */
-export async function deriveFingerprint(key: Uint8Array, roomNonce: string): Promise<string> {
-  const nonceBytes = new TextEncoder().encode(roomNonce);
-  const combined = new Uint8Array(key.length + nonceBytes.length);
-  combined.set(key);
-  combined.set(nonceBytes, key.length);
-  const hash = await crypto.subtle.digest("SHA-256", combined.buffer as ArrayBuffer);
+export async function deriveFingerprint(key: Uint8Array): Promise<string> {
+  const hash = await crypto.subtle.digest("SHA-256", key.buffer as ArrayBuffer);
   const bytes = new Uint8Array(hash).slice(0, 5);
   return Array.from(bytes)
     .map((b) => b.toString(16).padStart(2, "0").toUpperCase())
@@ -131,8 +126,8 @@ export function decrypt(
     if (!padded) return null;
     const plaintext = unpadMessage(padded);
     const envelope: MessageEnvelope = JSON.parse(plaintext);
-    // Discard decoy/no-op messages
-    if (envelope.nop) return null;
+    // Discard decoy/no-op messages (but not verification messages)
+    if (envelope.nop && !envelope.verify) return null;
     return envelope;
   } catch {
     return null;

@@ -1,5 +1,5 @@
 import type { WebSocket } from "ws";
-import { randomUUID, randomBytes } from "crypto";
+import { randomUUID } from "crypto";
 
 interface StoredMessage {
   id: string;
@@ -25,7 +25,6 @@ const MAX_PAYLOAD_SIZE = 12000; // 8192 padded plaintext + NaCl overhead + base6
 const ROOM_IDLE_TTL = 5 * 60 * 1000; // garbage collect empty rooms after 5 min
 
 export class ChatRoom {
-  private readonly roomNonce = randomBytes(16).toString("hex");
   private messages: StoredMessage[] = [];
   private rateLimits = new Map<string, number>();
   private burnTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -179,7 +178,7 @@ export class ChatRoom {
       burnAt: m.readAt !== null ? m.expiresAt : null,
       expiresAt: m.expiresAt,
     }));
-    this.send(conn, JSON.stringify({ type: "history", messages: history, roomNonce: this.roomNonce }));
+    this.send(conn, JSON.stringify({ type: "history", messages: history }));
     // Send immediate presence to the connecting client so they know the room state
     this.send(conn, JSON.stringify({ type: "presence", othersHere: this.connections.size > 1 }));
     // Delayed broadcast to others (metadata protection)
