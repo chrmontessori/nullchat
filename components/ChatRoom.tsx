@@ -59,7 +59,82 @@ const MAX_MESSAGE_LENGTH = 4096;
 const INACTIVITY_TIMEOUT = 15 * 60 * 1000; // 15 minutes
 const INACTIVITY_WARNING = 13 * 60 * 1000; // warn at 13 minutes
 
-function BurnTimer({ burnAt }: { burnAt: number }) {
+interface Theme {
+  bg: string;
+  headerBg: string;
+  headerBorder: string;
+  text: string;
+  textSecondary: string;
+  textMuted: string;
+  textFaint: string;
+  divider: string;
+  inputBg: string;
+  inputBorder: string;
+  myBubble: string;
+  theirBubble: string;
+  accent: string;
+  aliasBg: string;
+  burnTimer: string;
+  deadDropTimer: string;
+  timeAgoMine: string;
+  timeAgoTheirs: string;
+  warningBg: string;
+  warningBorder: string;
+  warningText: string;
+  receivedBorder: string;
+}
+
+const darkTheme: Theme = {
+  bg: "#000",
+  headerBg: "#0a0a0a",
+  headerBorder: "#222",
+  text: "#fff",
+  textSecondary: "#888",
+  textMuted: "#555",
+  textFaint: "#333",
+  divider: "#333",
+  inputBg: "#111",
+  inputBorder: "#333",
+  myBubble: "#1a3a5c",
+  theirBubble: "#1a1a1a",
+  accent: "#3478f6",
+  aliasBg: "#111",
+  burnTimer: "#666",
+  deadDropTimer: "rgba(255,255,255,0.4)",
+  timeAgoMine: "rgba(255,255,255,0.35)",
+  timeAgoTheirs: "#444",
+  warningBg: "#1a1a00",
+  warningBorder: "#333300",
+  warningText: "#ffcc00",
+  receivedBorder: "#1a3a2a",
+};
+
+const lightTheme: Theme = {
+  bg: "#fff",
+  headerBg: "#f5f5f5",
+  headerBorder: "#e0e0e0",
+  text: "#111",
+  textSecondary: "#666",
+  textMuted: "#999",
+  textFaint: "#ccc",
+  divider: "#ddd",
+  inputBg: "#f0f0f0",
+  inputBorder: "#ddd",
+  myBubble: "#0b57d0",
+  theirBubble: "#e9e9eb",
+  accent: "#0b57d0",
+  aliasBg: "#e8e8e8",
+  burnTimer: "#999",
+  deadDropTimer: "rgba(0,0,0,0.4)",
+  timeAgoMine: "rgba(255,255,255,0.5)",
+  timeAgoTheirs: "#999",
+  warningBg: "#fff8e1",
+  warningBorder: "#ffe082",
+  warningText: "#f57f17",
+  receivedBorder: "#a5d6a7",
+};
+
+function BurnTimer({ burnAt, color }: { burnAt: number; color?: string }) {
   const [remaining, setRemaining] = useState(() => Math.max(0, burnAt - Date.now()));
 
   useEffect(() => {
@@ -82,7 +157,7 @@ function BurnTimer({ burnAt }: { burnAt: number }) {
       style={{
         fontSize: 11,
         fontFamily: "monospace",
-        color: urgent ? "#ff453a" : "#666",
+        color: urgent ? "#ff453a" : (color || "#666"),
         marginLeft: 8,
       }}
     >
@@ -91,7 +166,7 @@ function BurnTimer({ burnAt }: { burnAt: number }) {
   );
 }
 
-function DeadDropTimer({ expiresAt }: { expiresAt: number }) {
+function DeadDropTimer({ expiresAt, color }: { expiresAt: number; color?: string }) {
   const [remaining, setRemaining] = useState(() => Math.max(0, expiresAt - Date.now()));
 
   useEffect(() => {
@@ -120,7 +195,7 @@ function DeadDropTimer({ expiresAt }: { expiresAt: number }) {
       style={{
         fontSize: 11,
         fontFamily: "monospace",
-        color: "rgba(255,255,255,0.4)",
+        color: color || "rgba(255,255,255,0.4)",
         marginLeft: 8,
       }}
       title="Expires if unread"
@@ -158,6 +233,8 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
   keyRef.current = encryptionKey;
 
   const [stegoMode, setStegoMode] = useState(false);
+  const [darkMode, setDarkMode] = useState(true);
+  const t = darkMode ? darkTheme : lightTheme;
   const [inactivityWarning, setInactivityWarning] = useState(false);
   const lastActivityRef = useRef(Date.now());
   const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -614,7 +691,7 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
         display: "flex",
         flexDirection: "column",
         height: "100dvh",
-        background: "#000",
+        background: t.bg,
         paddingTop: "env(safe-area-inset-top, 0px)",
         overflow: "hidden",
         position: "fixed" as const,
@@ -632,18 +709,18 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
           alignItems: "center",
           justifyContent: "space-between",
           padding: "12px 16px",
-          borderBottom: "1px solid #222",
-          background: "#0a0a0a",
+          borderBottom: `1px solid ${t.headerBorder}`,
+          background: t.headerBg,
           flexShrink: 0,
           gap: 8,
           flexWrap: "wrap",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-          <span style={{ fontSize: 16, fontWeight: 300, letterSpacing: "0.15em", color: "#fff", whiteSpace: "nowrap" }}>
+          <span style={{ fontSize: 16, fontWeight: 300, letterSpacing: "0.15em", color: t.text, whiteSpace: "nowrap" }}>
             nullchat
           </span>
-          <div style={{ width: 1, height: 16, background: "#333", flexShrink: 0 }} />
+          <div style={{ width: 1, height: 16, background: t.divider, flexShrink: 0 }} />
           <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
             <div
               style={{
@@ -654,11 +731,11 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
                 flexShrink: 0,
               }}
             />
-            <span style={{ fontSize: 13, color: "#888", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            <span style={{ fontSize: 13, color: t.textSecondary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {!connected ? "Connecting..." : othersHere ? "Others here" : "Waiting..."}
             </span>
           </div>
-          <div style={{ width: 1, height: 16, background: "#333", flexShrink: 0 }} />
+          <div style={{ width: 1, height: 16, background: t.divider, flexShrink: 0 }} />
           <span
             style={{
               fontSize: 10,
@@ -680,16 +757,26 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
             style={{
               fontSize: 12,
               fontFamily: "monospace",
-              color: "#3478f6",
-              background: "#111",
+              color: t.accent,
+              background: t.aliasBg,
               padding: "3px 8px",
               borderRadius: 6,
               whiteSpace: "nowrap",
+              display: "flex",
+              alignItems: "center",
+              minHeight: 36,
             }}
           >
             {aliasRef.current}
           </span>
-          <button onClick={leave} style={headerBtn}>Leave</button>
+          <button
+            onClick={() => setDarkMode((v) => !v)}
+            style={{ ...headerBtn, color: t.textSecondary, fontSize: 16, padding: "8px 8px" }}
+            title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {darkMode ? "\u263C" : "\u263E"}
+          </button>
+          <button onClick={leave} style={{ ...headerBtn, color: t.textSecondary }}>Leave</button>
           <button onClick={() => setShowTerminate(true)} style={{ ...headerBtn, color: "#ff453a" }}>
             Terminate
           </button>
@@ -704,18 +791,18 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
             alignItems: "center",
             justifyContent: "space-between",
             padding: "12px 16px",
-            borderBottom: "1px solid #222",
-            background: "#0a0a0a",
+            borderBottom: `1px solid ${t.headerBorder}`,
+            background: t.headerBg,
             flexShrink: 0,
             gap: 8,
             flexWrap: "wrap",
           }}
         >
-          <span style={{ fontSize: 13, color: "#888" }}>
+          <span style={{ fontSize: 13, color: t.textSecondary }}>
             Delete all your messages and disconnect?
           </span>
           <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => setShowTerminate(false)} style={headerBtn}>Cancel</button>
+            <button onClick={() => setShowTerminate(false)} style={{ ...headerBtn, color: t.textSecondary }}>Cancel</button>
             <button
               onClick={terminate}
               style={{
@@ -760,8 +847,8 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
               gap: 8,
             }}
           >
-            <p style={{ fontSize: 15, color: "#555" }}>End-to-end encrypted</p>
-            <p style={{ fontSize: 13, color: "#333" }}>Messages burn 5 minutes after being received</p>
+            <p style={{ fontSize: 15, color: t.textMuted }}>End-to-end encrypted</p>
+            <p style={{ fontSize: 13, color: t.textFaint }}>Messages burn 5 minutes after being received</p>
           </div>
         )}
 
@@ -782,12 +869,12 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
                   borderRadius: 18,
                   borderBottomRightRadius: msg.mine ? 4 : 18,
                   borderBottomLeftRadius: msg.mine ? 18 : 4,
-                  background: msg.mine ? "#1a3a5c" : "#1a1a1a",
-                  color: "#fff",
+                  background: msg.mine ? t.myBubble : t.theirBubble,
+                  color: msg.mine ? "#fff" : t.text,
                 }}
               >
                 {!msg.mine && (
-                  <div style={{ fontSize: 11, fontFamily: "monospace", color: "#3478f6", marginBottom: 3 }}>
+                  <div style={{ fontSize: 11, fontFamily: "monospace", color: t.accent, marginBottom: 3 }}>
                     {msg.alias}
                   </div>
                 )}
@@ -806,15 +893,15 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
                   <span
                     style={{
                       fontSize: 11,
-                      color: msg.mine ? "rgba(255,255,255,0.35)" : "#444",
+                      color: msg.mine ? t.timeAgoMine : t.timeAgoTheirs,
                     }}
                   >
                     {timeAgo(msg.ts)}
                   </span>
                   {msg.burnAt !== null ? (
-                    <BurnTimer burnAt={msg.burnAt} />
+                    <BurnTimer burnAt={msg.burnAt} color={t.burnTimer} />
                   ) : !othersHere ? (
-                    <DeadDropTimer expiresAt={msg.expiresAt} />
+                    <DeadDropTimer expiresAt={msg.expiresAt} color={t.deadDropTimer} />
                   ) : null}
                 </div>
               </div>
@@ -831,7 +918,7 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
             display: "flex",
             justifyContent: "center",
             padding: "8px 16px",
-            borderTop: "1px solid #222",
+            borderTop: `1px solid ${t.headerBorder}`,
             flexShrink: 0,
           }}
         >
@@ -841,7 +928,7 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
               fontSize: 13,
               color: "#30d158",
               background: "none",
-              border: "1px solid #1a3a2a",
+              border: `1px solid ${t.receivedBorder}`,
               borderRadius: 20,
               padding: "8px 24px",
               cursor: "pointer",
@@ -862,21 +949,21 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
             justifyContent: "center",
             gap: 12,
             padding: "10px 16px",
-            background: "#1a1a00",
-            borderTop: "1px solid #333300",
+            background: t.warningBg,
+            borderTop: `1px solid ${t.warningBorder}`,
             flexShrink: 0,
           }}
         >
-          <span style={{ fontSize: 13, color: "#ffcc00" }}>
+          <span style={{ fontSize: 13, color: t.warningText }}>
             Inactive — disconnecting soon
           </span>
           <button
             onClick={resetInactivityTimer}
             style={{
               fontSize: 13,
-              color: "#ffcc00",
+              color: t.warningText,
               background: "none",
-              border: "1px solid #555500",
+              border: `1px solid ${t.warningBorder}`,
               borderRadius: 20,
               padding: "6px 16px",
               cursor: "pointer",
@@ -903,7 +990,7 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
           padding: "12px 16px",
           paddingBottom: "calc(12px + env(safe-area-inset-bottom, 0px))",
           flexShrink: 0,
-          background: "#000",
+          background: t.bg,
         }}
       >
         <div
@@ -912,9 +999,9 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
             alignItems: "center",
             width: "100%",
             maxWidth: 560,
-            border: "1px solid #333",
+            border: `1px solid ${t.inputBorder}`,
             borderRadius: 24,
-            background: "#111",
+            background: t.inputBg,
             padding: "0 16px",
           }}
         >
@@ -933,7 +1020,7 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
               background: "transparent",
               border: "none",
               fontSize: 16,
-              color: "#fff",
+              color: t.text,
               padding: "12px 0",
               minHeight: 44,
             }}
@@ -943,7 +1030,7 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
             style={{
               background: "none",
               border: "none",
-              color: input.trim() ? "#3478f6" : "#333",
+              color: input.trim() ? t.accent : t.textFaint,
               fontSize: 15,
               fontWeight: 600,
               cursor: "pointer",
@@ -966,7 +1053,6 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
 
 const headerBtn: React.CSSProperties = {
   fontSize: 14,
-  color: "#888",
   background: "none",
   border: "none",
   cursor: "pointer",
