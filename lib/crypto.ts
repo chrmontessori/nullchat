@@ -11,20 +11,6 @@ export interface MessageEnvelope {
   text: string;
   ts: number;
   nop?: boolean; // true = decoy traffic, discard after decryption
-  chain?: string; // SHA-256 hash of previous message's ciphertext payload
-}
-
-/**
- * Hash a message payload (ciphertext string) for the integrity chain.
- * Returns the first 16 hex chars of SHA-256 — enough to detect drops
- * without bloating the envelope.
- */
-export async function hashPayload(payload: string): Promise<string> {
-  const data = new TextEncoder().encode(payload);
-  const hash = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(hash).slice(0, 8))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
 }
 
 // Fixed plaintext size before encryption.

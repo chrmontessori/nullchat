@@ -7,7 +7,6 @@ import {
   decrypt,
   generateAlias,
   roundTimestamp,
-  hashPayload,
   type MessageEnvelope,
 } from "@/lib/crypto";
 import type { ServerEvent } from "@/lib/protocol";
@@ -232,9 +231,6 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
   const seenRef = useRef(new Set<string>());
   const keyRef = useRef(encryptionKey);
   keyRef.current = encryptionKey;
-  const chainRef = useRef<string | null>(null); // hash of last message payload
-  const [chainBroken, setChainBroken] = useState(false);
-
   const [stegoMode, setStegoMode] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
   const t = darkMode ? darkTheme : lightTheme;
@@ -479,23 +475,12 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
             });
           }
         }
-        // Build chain from history — set chainRef to hash of last message
-        if (data.messages.length > 0) {
-          const lastPayload = data.messages[data.messages.length - 1].payload;
-          hashPayload(lastPayload).then((h) => { chainRef.current = h; });
-        }
         if (dec.length) setMessages((prev) => [...prev, ...dec]);
         setHistoryLoaded(true);
       } else if (data.type === "message") {
         if (seenRef.current.has(data.id)) return;
         const env = decrypt(data.payload, key);
         if (env) {
-          // Verify integrity chain: does this message's chain hash match our last?
-          if (env.chain && chainRef.current && env.chain !== chainRef.current) {
-            setChainBroken(true);
-          }
-          // Advance chain to this message's payload hash
-          hashPayload(data.payload).then((h) => { chainRef.current = h; });
           seenRef.current.add(data.id);
           setMessages((prev) => [...prev, {
             id: data.id,
@@ -540,15 +525,8 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
   const send = () => {
     const text = input.trim();
     if (!text || !wsRef.current || text.length > MAX_MESSAGE_LENGTH) return;
-    const envelope: MessageEnvelope = {
-      alias: aliasRef.current,
-      text,
-      ts: roundTimestamp(Date.now()),
-      ...(chainRef.current ? { chain: chainRef.current } : {}),
-    };
+    const envelope: MessageEnvelope = { alias: aliasRef.current, text, ts: roundTimestamp(Date.now()) };
     const payload = encrypt(envelope, encryptionKey);
-    // Advance chain to include our own message
-    hashPayload(payload).then((h) => { chainRef.current = h; });
     wsSendJSON(wsRef.current, { type: "message", payload });
     setInput("");
     setDeadDropAcked(true);
@@ -833,25 +811,6 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
               Confirm
             </button>
           </div>
-        </div>
-      )}
-
-      {/* ── Integrity warning ── */}
-      {chainBroken && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "8px 16px",
-            background: darkMode ? "#1a0000" : "#fff0f0",
-            borderBottom: `1px solid ${darkMode ? "#330000" : "#ffcccc"}`,
-            flexShrink: 0,
-          }}
-        >
-          <span style={{ fontSize: 12, color: "#ff453a" }}>
-            Message integrity break detected — a message may have been dropped or injected
-          </span>
         </div>
       )}
 

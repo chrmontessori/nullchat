@@ -112,11 +112,11 @@ The sender can safely reconnect at any time to check whether their message is st
 This provides a higher level of security than the default shared rooms:
 
 • Both parties are routed through Tor's multi-hop onion network — neither party's real IP address or location is visible to anyone, including the server.
-• No DNS lookups, no CDN, no Cloudflare, and no third-party infrastructure touches the connection at any point.
+• No DNS lookups, no CDN, and no third-party infrastructure touches the connection at any point.
 • Traffic analysis is significantly harder because both sides benefit from Tor's relay padding combined with nullchat's own connection padding (random dummy frames sent at random intervals).
 • There is no clearnet participant whose weaker connection metadata could be correlated with the conversation.
 
-You are only as anonymous as the weakest link in the conversation. In a default room, a clearnet participant's connection touches DNS resolvers, Cloudflare, and standard internet routing — all of which can be observed or subpoenaed for metadata about who connected, when, and from where. The Tor-only toggle eliminates this risk entirely by ensuring every participant has the same level of network-layer anonymity.
+You are only as anonymous as the weakest link in the conversation. In a default room, a clearnet participant's connection touches DNS resolvers, CDN infrastructure, and standard internet routing — all of which can be observed or subpoenaed for metadata about who connected, when, and from where. The Tor-only toggle eliminates this risk entirely by ensuring every participant has the same level of network-layer anonymity.
 
 Both parties must agree to enable the toggle — it works the same way as agreeing on the shared secret. The chat header displays "TOR ONLY" in green when active, or "CLEARNET" in red for standard rooms, so you always know which mode you are in.`,
   },
@@ -126,7 +126,7 @@ Both parties must agree to enable the toggle — it works the same way as agreei
   },
   {
     title: "What about IP addresses?",
-    body: `On the clearnet (nullchat.org), the application is hosted on Cloudflare's network. Your IP address is handled at the edge infrastructure layer and is never read, logged, or stored by the application code. The server code does not access IP headers. We have no mechanism to identify you by network address.
+    body: `On the clearnet (nullchat.org), the application is hosted on Vercel's edge network. Your IP address is handled at the infrastructure layer and is never read, logged, or stored by the application code. The server code does not access IP headers. We have no mechanism to identify you by network address.
 
 On the Tor hidden service (.onion), your IP address is never visible to the server at all — Tor's onion routing ensures complete network-level anonymity. The server only sees connections from the Tor network, with no way to trace them back to you.`,
   },
