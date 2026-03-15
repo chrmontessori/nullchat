@@ -712,7 +712,7 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
             {/* Input disguised as cursor / active typing area */}
             <div style={{ position: "relative" }}>
               <input
-                ref={(el) => { if (el) el.focus(); }}
+                autoFocus
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
