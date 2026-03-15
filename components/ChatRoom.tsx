@@ -235,6 +235,7 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
   keyRef.current = encryptionKey;
   const [stegoMode, setStegoMode] = useState(false);
   const [stegoDocName, setStegoDocName] = useState("Untitled document");
+  const stegoInputMounted = useRef(false);
   const [darkMode, setDarkMode] = useState(true);
   const theme = darkMode ? darkTheme : lightTheme;
   const [inactivityWarning, setInactivityWarning] = useState(false);
@@ -712,7 +713,7 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
             {/* Input disguised as cursor / active typing area */}
             <div style={{ position: "relative" }}>
               <input
-                autoFocus
+                ref={(el) => { if (el && !stegoInputMounted.current) { stegoInputMounted.current = true; el.focus(); } }}
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
