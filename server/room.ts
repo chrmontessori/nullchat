@@ -1,5 +1,6 @@
 import type { WebSocket } from "ws";
 import { randomUUID } from "crypto";
+import { saveRoom, loadRoom, deleteRoom } from "./persistence";
 
 interface StoredMessage {
   id: string;
@@ -38,7 +39,35 @@ export class ChatRoom {
   constructor(
     public readonly roomId: string,
     private onEmpty: (roomId: string) => void
-  ) {}
+  ) {
+    // Hydrate from disk if persisted state exists
+    const persisted = loadRoom(roomId);
+    if (persisted) {
+      this.messages = persisted.messages;
+      this.hasHadReply = persisted.hasHadReply;
+      // Restart burn timers for messages already marked as read
+      const now = Date.now();
+      for (const msg of this.messages) {
+        if (msg.readAt !== null) {
+          const remaining = msg.expiresAt - now;
+          if (remaining > 0) {
+            this.restartBurnTimer(msg, remaining);
+          }
+        }
+      }
+    }
+  }
+
+  private persist() {
+    if (this.messages.length === 0) {
+      deleteRoom(this.roomId);
+    } else {
+      saveRoom(this.roomId, {
+        messages: this.messages,
+        hasHadReply: this.hasHadReply,
+      });
+    }
+  }
 
   private getConnections(): Connection[] {
     return [...this.connections.values()];
@@ -74,6 +103,7 @@ export class ChatRoom {
       }
       this.broadcast(JSON.stringify({ type: "deleted", ids }));
       if (this.messages.length === 0) this.hasHadReply = false;
+      this.persist();
     }
   }
 
@@ -85,6 +115,7 @@ export class ChatRoom {
       this.messages = this.messages.filter((m) => m.id !== msg.id);
       this.broadcast(JSON.stringify({ type: "deleted", ids: [msg.id] }));
       if (this.messages.length === 0) this.hasHadReply = false;
+      this.persist();
     }, remaining);
 
     this.burnTimers.set(msg.id, timer);
@@ -106,9 +137,11 @@ export class ChatRoom {
       this.messages = this.messages.filter((m) => m.id !== msg.id);
       this.broadcast(JSON.stringify({ type: "deleted", ids: [msg.id] }));
       if (this.messages.length === 0) this.hasHadReply = false;
+      this.persist();
     }, BURN_TTL);
 
     this.burnTimers.set(msg.id, timer);
+    this.persist();
   }
 
   private broadcastPresence() {
@@ -136,6 +169,7 @@ export class ChatRoom {
     for (const timer of this.burnTimers.values()) clearTimeout(timer);
     this.burnTimers.clear();
     if (this.idleTimer) clearTimeout(this.idleTimer);
+    deleteRoom(this.roomId);
   }
 
   onConnect(ws: WebSocket): string {
@@ -159,6 +193,8 @@ export class ChatRoom {
         if (msg.readAt === null) this.startBurnTimer(msg);
       }
     }
+
+    this.persist();
 
     // Send history
     const history = this.messages.slice(-MAX_BUFFER).map((m) => ({
@@ -198,6 +234,7 @@ export class ChatRoom {
           this.startBurnTimer(msg);
         }
       }
+      this.persist();
       return;
     }
 
@@ -221,6 +258,7 @@ export class ChatRoom {
         this.broadcast(JSON.stringify({ type: "deleted", ids: deletedIds }));
       }
 
+      this.persist();
       this.rateLimits.delete(connId);
       conn.ws.close();
       return;
@@ -320,6 +358,8 @@ export class ChatRoom {
     if (this.connections.size > 1) {
       this.startBurnTimer(storedMsg);
     }
+
+    this.persist();
   }
 
   onClose(connId: string) {

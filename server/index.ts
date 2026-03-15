@@ -4,6 +4,7 @@ import { randomBytes } from "crypto";
 import { join, extname } from "path";
 import { WebSocketServer, WebSocket } from "ws";
 import { ChatRoom } from "./room";
+import { initStorage, purgeExpiredRooms } from "./persistence";
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const STATIC_DIR = join(__dirname, "..", "..", "out");
@@ -232,5 +233,11 @@ const pingInterval = setInterval(() => {
 }, 60_000);
 
 httpServer.on("close", () => clearInterval(pingInterval));
+
+// Initialize persistent storage (restricted directory)
+initStorage();
+
+// Purge expired room files every 10 minutes
+setInterval(purgeExpiredRooms, 10 * 60 * 1000);
 
 httpServer.listen(PORT, "127.0.0.1");
