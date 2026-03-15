@@ -234,6 +234,7 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
   const keyRef = useRef(encryptionKey);
   keyRef.current = encryptionKey;
   const [stegoMode, setStegoMode] = useState(false);
+  const [stegoDocName, setStegoDocName] = useState("Untitled document");
   const [darkMode, setDarkMode] = useState(true);
   const theme = darkMode ? darkTheme : lightTheme;
   const [inactivityWarning, setInactivityWarning] = useState(false);
@@ -405,6 +406,14 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
     }, 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // Sync browser tab title with stego document name
+  useEffect(() => {
+    if (stegoMode) {
+      document.title = `${stegoDocName || "Untitled document"} - Google Docs`;
+      return () => { document.title = "nullchat"; };
+    }
+  }, [stegoMode, stegoDocName]);
 
   // Handle mobile viewport resize when keyboard opens/closes
   useEffect(() => {
@@ -610,7 +619,24 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
             </div>
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 18, fontWeight: 400, color: "#202124", lineHeight: 1.2 }}>Untitled document</div>
+            <input
+              type="text"
+              value={stegoDocName}
+              onChange={(e) => setStegoDocName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+              style={{
+                fontSize: 18,
+                fontWeight: 400,
+                color: "#202124",
+                lineHeight: 1.2,
+                background: "transparent",
+                border: "none",
+                outline: "none",
+                width: "100%",
+                padding: 0,
+                fontFamily: "inherit",
+              }}
+            />
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ fontSize: 13, color: "#444746" }}>Editing</div>
