@@ -11,7 +11,7 @@ export async function deriveRoomId(password: string): Promise<string> {
     password,
     salt,
     iterations: 3,
-    memorySize: 65536, // 64 MiB
+    memorySize: 16384, // 16 MiB — compatible with Tor Browser
     hashLength: 32,
     parallelism: 1,
     outputType: "hex",

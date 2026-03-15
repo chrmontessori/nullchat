@@ -2,7 +2,9 @@ import nacl from "tweetnacl";
 import { encodeBase64, decodeBase64 } from "tweetnacl-util";
 
 // Argon2id parameters: memory-hard KDF resistant to GPU/ASIC attacks
-const ARGON2_MEM_KIB = 65536; // 64 MiB
+// 16 MiB ensures compatibility with constrained environments (Tor Browser)
+// while maintaining strong brute-force resistance via Argon2id.
+const ARGON2_MEM_KIB = 16384; // 16 MiB
 const ARGON2_TIME = 3; // iterations
 const ARGON2_PARALLELISM = 1;
 
@@ -35,7 +37,7 @@ export function roundTimestamp(ts: number): number {
  * salt independent from the room ID, so knowing the room ID does
  * not help an attacker crack the key.
  *
- * Argon2id is memory-hard: each guess requires 64 MiB of RAM,
+ * Argon2id is memory-hard: each guess requires 16 MiB of RAM,
  * neutralizing GPU/ASIC brute-force attacks on weak passwords.
  */
 export async function deriveKey(password: string): Promise<Uint8Array> {

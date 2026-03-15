@@ -85,10 +85,9 @@ export default function Home() {
     if (loading) return;
     setLoading(true);
     try {
-      const [id, key] = await Promise.all([
-        deriveRoomId(password),
-        deriveKey(password),
-      ]);
+      // Sequential: avoid allocating 2x64 MiB simultaneously
+      const id = await deriveRoomId(password);
+      const key = await deriveKey(password);
       // Tor-isolated rooms use a separate namespace so only other
       // Tor users with the toggle enabled land in the same room
       roomIdRef.current = torIsolated ? `tor-${id}` : id;
