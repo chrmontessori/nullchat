@@ -18,7 +18,7 @@ De sterkte-indicator op het invoerscherm geeft je een ruwe inschatting van hoe b
 
 1. Het geheim wordt verwerkt door Argon2id — een geheugenintensieve sleutelafleidingsfunctie — met een domeingescheiden salt om een kamer-ID te produceren. Deze hash wordt naar de server gestuurd zodat die weet met welke kamer je verbonden moet worden. De server ziet nooit je werkelijke geheim.
 
-2. Het geheim wordt door een tweede, onafhankelijke Argon2id-afleiding gehaald (64 MiB geheugen, 3 iteraties) om een 256-bits versleutelingssleutel te produceren. Deze sleutel verlaat nooit je browser. Argon2id vereist grote blokken RAM per poging, waardoor GPU- en ASIC-brute-force-aanvallen op je wachtwoord ordes van grootte moeilijker worden dan bij traditionele KDF's.
+2. Het geheim wordt door een tweede, onafhankelijke Argon2id-afleiding gehaald (16 MiB geheugen, 3 iteraties) om een 256-bits versleutelingssleutel te produceren. Deze sleutel verlaat nooit je browser. Argon2id vereist grote blokken RAM per poging, waardoor GPU- en ASIC-brute-force-aanvallen op je wachtwoord ordes van grootte moeilijker worden dan bij traditionele KDF's.
 
 Elk bericht dat je verstuurt, wordt versleuteld met NaCl secretbox (XSalsa20-Poly1305) met die sleutel voordat het je apparaat verlaat. De server ontvangt, slaat op en stuurt alleen versleutelde tekst door — versleutelde blobs die betekenisloos zijn zonder de sleutel. Wij kunnen je berichten niet lezen. Niemand kan dat, tenzij ze het gedeelde geheim kennen.`,
   faq_5_title: "Wat ziet de server?",

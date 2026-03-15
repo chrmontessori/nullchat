@@ -18,7 +18,7 @@ Giriş ekranındaki güç göstergesi, sırrınızın kaba kuvvet saldırıları
 
 1. Sır, alan adına özgü bir tuz kullanılarak Argon2id — bellek yoğun bir anahtar türetme fonksiyonu — ile işlenir ve bir oda kimliği üretilir. Bu hash, sunucuya sizi hangi odaya bağlayacağını bildirmek için gönderilir. Sunucu gerçek sırrınızı asla görmez.
 
-2. Sır, 256 bit şifreleme anahtarı üretmek için ikinci, bağımsız bir Argon2id türetmesinden (64 MiB bellek, 3 yineleme) geçirilir. Bu anahtar tarayıcınızdan asla çıkmaz. Argon2id her tahmin için büyük RAM blokları gerektirir, bu da GPU ve ASIC kaba kuvvet saldırılarını geleneksel KDF'lere göre çok daha zor hale getirir.
+2. Sır, 256 bit şifreleme anahtarı üretmek için ikinci, bağımsız bir Argon2id türetmesinden (16 MiB bellek, 3 yineleme) geçirilir. Bu anahtar tarayıcınızdan asla çıkmaz. Argon2id her tahmin için büyük RAM blokları gerektirir, bu da GPU ve ASIC kaba kuvvet saldırılarını geleneksel KDF'lere göre çok daha zor hale getirir.
 
 Gönderdiğiniz her mesaj, cihazınızdan ayrılmadan önce bu anahtar kullanılarak NaCl secretbox (XSalsa20-Poly1305) ile şifrelenir. Sunucu yalnızca şifreli metin — anahtar olmadan anlamsız olan şifreli veri parçaları — alır, saklar ve iletir. Mesajlarınızı okuyamayız. Ortak sırrı bilmedikçe kimse okuyamaz.`,
   faq_5_title: "Sunucu ne görür?",

@@ -18,7 +18,7 @@ El indicador de fortaleza en la pantalla de entrada te da una idea aproximada de
 
 1. El secreto se procesa a través de Argon2id — una función de derivación de claves con uso intensivo de memoria — utilizando una sal separada por dominio para producir un ID de sala. Este hash se envía al servidor para que sepa a qué sala conectarte. El servidor nunca ve tu secreto real.
 
-2. El secreto se procesa a través de una segunda derivación independiente de Argon2id (64 MiB de memoria, 3 iteraciones) para producir una clave de cifrado de 256 bits. Esta clave nunca sale de tu navegador. Argon2id requiere grandes bloques de RAM por intento, lo que hace que los ataques de fuerza bruta con GPU y ASIC contra tu contraseña sean órdenes de magnitud más difíciles que con funciones KDF tradicionales.
+2. El secreto se procesa a través de una segunda derivación independiente de Argon2id (16 MiB de memoria, 3 iteraciones) para producir una clave de cifrado de 256 bits. Esta clave nunca sale de tu navegador. Argon2id requiere grandes bloques de RAM por intento, lo que hace que los ataques de fuerza bruta con GPU y ASIC contra tu contraseña sean órdenes de magnitud más difíciles que con funciones KDF tradicionales.
 
 Cada mensaje que envías se cifra con NaCl secretbox (XSalsa20-Poly1305) usando esa clave antes de salir de tu dispositivo. El servidor recibe, almacena y retransmite únicamente texto cifrado — bloques cifrados que no tienen sentido sin la clave. No podemos leer tus mensajes. Nadie puede, a menos que conozca el secreto compartido.`,
   faq_5_title: "¿Qué ve el servidor?",

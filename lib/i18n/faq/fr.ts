@@ -18,7 +18,7 @@ L'indicateur de robustesse sur l'écran d'entrée vous donne une idée approxima
 
 1. Le secret est traité par Argon2id — une fonction de dérivation de clé à mémoire intensive — avec un sel à domaine séparé pour produire un identifiant de salon. Ce hash est envoyé au serveur pour qu'il sache à quel salon vous connecter. Le serveur ne voit jamais votre secret réel.
 
-2. Le secret passe par une seconde dérivation Argon2id indépendante (64 Mio de mémoire, 3 itérations) pour produire une clé de chiffrement de 256 bits. Cette clé ne quitte jamais votre navigateur. Argon2id nécessite de grands blocs de RAM par tentative, rendant les attaques par force brute sur GPU et ASIC contre votre mot de passe considérablement plus difficiles qu'avec les KDF traditionnels.
+2. Le secret passe par une seconde dérivation Argon2id indépendante (16 Mio de mémoire, 3 itérations) pour produire une clé de chiffrement de 256 bits. Cette clé ne quitte jamais votre navigateur. Argon2id nécessite de grands blocs de RAM par tentative, rendant les attaques par force brute sur GPU et ASIC contre votre mot de passe considérablement plus difficiles qu'avec les KDF traditionnels.
 
 Chaque message que vous envoyez est chiffré avec NaCl secretbox (XSalsa20-Poly1305) à l'aide de cette clé avant de quitter votre appareil. Le serveur reçoit, stocke et relaie uniquement du texte chiffré — des blocs opaques qui n'ont aucun sens sans la clé. Nous ne pouvons pas lire vos messages. Personne ne le peut, à moins de connaître le secret partagé.`,
   faq_5_title: "Que voit le serveur ?",

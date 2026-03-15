@@ -18,7 +18,7 @@ Die Stärkeanzeige auf dem Eingabebildschirm gibt dir einen ungefähren Eindruck
 
 1. Das Geheimnis wird durch Argon2id verarbeitet — eine speicherintensive Schlüsselableitungsfunktion — unter Verwendung eines domänenseparierten Salts, um eine Raum-ID zu erzeugen. Dieser Hash wird an den Server gesendet, damit er weiß, mit welchem Raum er dich verbinden soll. Der Server sieht niemals dein tatsächliches Geheimnis.
 
-2. Das Geheimnis wird durch eine zweite, unabhängige Argon2id-Ableitung (64 MiB Speicher, 3 Iterationen) verarbeitet, um einen 256-Bit-Verschlüsselungsschlüssel zu erzeugen. Dieser Schlüssel verlässt niemals deinen Browser. Argon2id erfordert große Speicherblöcke pro Versuch, wodurch GPU- und ASIC-Brute-Force-Angriffe auf dein Passwort um Größenordnungen schwieriger werden als bei herkömmlichen KDFs.
+2. Das Geheimnis wird durch eine zweite, unabhängige Argon2id-Ableitung (16 MiB Speicher, 3 Iterationen) verarbeitet, um einen 256-Bit-Verschlüsselungsschlüssel zu erzeugen. Dieser Schlüssel verlässt niemals deinen Browser. Argon2id erfordert große Speicherblöcke pro Versuch, wodurch GPU- und ASIC-Brute-Force-Angriffe auf dein Passwort um Größenordnungen schwieriger werden als bei herkömmlichen KDFs.
 
 Jede Nachricht, die du sendest, wird mit NaCl secretbox (XSalsa20-Poly1305) unter Verwendung dieses Schlüssels verschlüsselt, bevor sie dein Gerät verlässt. Der Server empfängt, speichert und leitet nur Chiffretext weiter — verschlüsselte Blobs, die ohne den Schlüssel bedeutungslos sind. Wir können deine Nachrichten nicht lesen. Niemand kann es, es sei denn, er kennt das gemeinsame Geheimnis.`,
   faq_5_title: "Was sieht der Server?",

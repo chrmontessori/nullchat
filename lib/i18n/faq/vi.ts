@@ -18,7 +18,7 @@ Chỉ báo độ mạnh trên màn hình nhập cho bạn cảm nhận sơ bộ 
 
 1. Bí mật được xử lý qua Argon2id — một hàm dẫn xuất khóa đòi hỏi nhiều bộ nhớ — sử dụng một salt tách biệt theo miền để tạo ra ID phòng. Hash này được gửi đến máy chủ để nó biết kết nối bạn vào phòng nào. Máy chủ không bao giờ thấy bí mật thực sự của bạn.
 
-2. Bí mật được chạy qua một phép dẫn xuất Argon2id thứ hai, độc lập (64 MiB bộ nhớ, 3 vòng lặp) để tạo ra một khóa mã hóa 256-bit. Khóa này không bao giờ rời khỏi trình duyệt của bạn. Argon2id yêu cầu các khối RAM lớn cho mỗi lần thử, khiến các cuộc tấn công brute-force bằng GPU và ASIC vào mật khẩu của bạn khó hơn nhiều bậc so với các KDF truyền thống.
+2. Bí mật được chạy qua một phép dẫn xuất Argon2id thứ hai, độc lập (16 MiB bộ nhớ, 3 vòng lặp) để tạo ra một khóa mã hóa 256-bit. Khóa này không bao giờ rời khỏi trình duyệt của bạn. Argon2id yêu cầu các khối RAM lớn cho mỗi lần thử, khiến các cuộc tấn công brute-force bằng GPU và ASIC vào mật khẩu của bạn khó hơn nhiều bậc so với các KDF truyền thống.
 
 Mọi tin nhắn bạn gửi đều được mã hóa bằng NaCl secretbox (XSalsa20-Poly1305) với khóa đó trước khi rời thiết bị của bạn. Máy chủ nhận, lưu trữ và chuyển tiếp chỉ bản mã — các blob được mã hóa vô nghĩa nếu không có khóa. Chúng tôi không thể đọc tin nhắn của bạn. Không ai có thể, trừ khi họ biết bí mật chung.`,
   faq_5_title: "Máy chủ thấy gì?",

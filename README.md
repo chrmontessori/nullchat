@@ -11,7 +11,7 @@ Anonymous, end-to-end encrypted, ephemeral chat rooms. No accounts. No logs. No 
 2. Both enter the secret into nullchat
 3. They land in the same encrypted room — no sign-up, no identity, no trace
 
-The shared secret derives both the room ID and the encryption key using Argon2id (64 MiB memory-hard KDF, 3 iterations) with domain-separated salts. Messages are encrypted client-side with NaCl secretbox (XSalsa20-Poly1305) before leaving the browser. The server only sees encrypted blobs.
+The shared secret derives both the room ID and the encryption key using Argon2id (16 MiB memory-hard KDF, 3 iterations) with domain-separated salts. Messages are encrypted client-side with NaCl secretbox (XSalsa20-Poly1305) before leaving the browser. The server only sees encrypted blobs.
 
 ## What the server sees
 
@@ -50,7 +50,7 @@ Both Tor and clearnet users connect to the same backend — same rooms, same mes
 ## Stack
 
 - **Frontend:** Next.js 16, React 19, Tailwind CSS 4
-- **Encryption:** TweetNaCl (XSalsa20-Poly1305), Argon2id (64 MiB, 3 iterations)
+- **Encryption:** TweetNaCl (XSalsa20-Poly1305), Argon2id (16 MiB, 3 iterations)
 - **Server:** Node.js, `ws` library
 - **Infrastructure:** Tor hidden service, nginx (TLS 1.2+), Let's Encrypt
 
@@ -109,13 +109,13 @@ The production server runs with:
 - IP headers stripped at nginx
 - Gzip disabled (prevents BREACH attacks)
 - Read-only application filesystem
-- Memory-only tmpfs working directory (nothing touches disk)
+- Persistent room state in restricted directory (0700/0600 permissions, auto-purged on expiry)
 - Swap disabled (prevents memory contents leaking to disk)
 - Core dumps disabled system-wide
 - Connection padding (random-length dummy frames at random intervals defeat traffic analysis)
 - WebSocket compression disabled (prevents CRIME-style compression side-channel attacks)
 - WebSocket upgrade rate limiting (5 connections/min per IP)
-- Delayed presence broadcasts (random 5–15s jitter defeats join/leave timing correlation)
+- Immediate presence broadcasts (no artificial delay)
 - Encryption key zeroed on leave, terminate, and panic
 - Clipboard auto-cleared on tab close and after 15 seconds of copy
 - Dedicated unprivileged service user

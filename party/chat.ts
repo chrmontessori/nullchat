@@ -20,7 +20,7 @@ const BURN_TTL = 5 * 60 * 1000; // 5 minutes after acknowledged/replied
 const MAX_CONNECTIONS = 50;
 const RATE_LIMIT_MS = 1000;
 const MAX_BUFFER = 50;
-const MAX_PAYLOAD_SIZE = 8192;
+const MAX_PAYLOAD_SIZE = 12000; // 8192 padded plaintext + NaCl overhead + base64 ≈ 11KB
 
 export default class ChatRoom implements Party.Server {
   private messages: StoredMessage[] = [];

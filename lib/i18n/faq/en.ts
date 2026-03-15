@@ -18,7 +18,7 @@ The strength indicator on the entry screen gives you a rough sense of how resist
 
 1. The secret is processed through Argon2id — a memory-hard key derivation function — using a domain-separated salt to produce a room ID. This hash is sent to the server so it knows which room to connect you to. The server never sees your actual secret.
 
-2. The secret is run through a second, independent Argon2id derivation (64 MiB memory, 3 iterations) to produce a 256-bit encryption key. This key never leaves your browser. Argon2id requires large blocks of RAM per guess, making GPU and ASIC brute-force attacks on your password orders of magnitude harder than traditional KDFs.
+2. The secret is run through a second, independent Argon2id derivation (16 MiB memory, 3 iterations) to produce a 256-bit encryption key. This key never leaves your browser. Argon2id requires large blocks of RAM per guess, making GPU and ASIC brute-force attacks on your password orders of magnitude harder than traditional KDFs.
 
 Every message you send is encrypted with NaCl secretbox (XSalsa20-Poly1305) using that key before it leaves your device. The server receives, stores, and relays only ciphertext — encrypted blobs that are meaningless without the key. We cannot read your messages. No one can, unless they know the shared secret.`,
   faq_5_title: "What does the server see?",

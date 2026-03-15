@@ -18,7 +18,7 @@ L'indicatore di robustezza nella schermata di ingresso ti dà un'idea approssima
 
 1. Il segreto viene elaborato tramite Argon2id — una funzione di derivazione della chiave ad alto consumo di memoria — utilizzando un salt separato per dominio per produrre un ID stanza. Questo hash viene inviato al server affinché sappia a quale stanza connetterti. Il server non vede mai il tuo segreto effettivo.
 
-2. Il segreto viene sottoposto a una seconda derivazione Argon2id indipendente (64 MiB di memoria, 3 iterazioni) per produrre una chiave di crittografia a 256 bit. Questa chiave non lascia mai il tuo browser. Argon2id richiede grandi blocchi di RAM per ogni tentativo, rendendo gli attacchi di forza bruta con GPU e ASIC sulla tua password di ordini di grandezza più difficili rispetto ai KDF tradizionali.
+2. Il segreto viene sottoposto a una seconda derivazione Argon2id indipendente (16 MiB di memoria, 3 iterazioni) per produrre una chiave di crittografia a 256 bit. Questa chiave non lascia mai il tuo browser. Argon2id richiede grandi blocchi di RAM per ogni tentativo, rendendo gli attacchi di forza bruta con GPU e ASIC sulla tua password di ordini di grandezza più difficili rispetto ai KDF tradizionali.
 
 Ogni messaggio che invii viene crittografato con NaCl secretbox (XSalsa20-Poly1305) utilizzando quella chiave prima di lasciare il tuo dispositivo. Il server riceve, memorizza e inoltra solo testo cifrato — blocchi crittografati privi di significato senza la chiave. Non possiamo leggere i tuoi messaggi. Nessuno può, a meno che non conosca il segreto condiviso.`,
   faq_5_title: "Cosa vede il server?",

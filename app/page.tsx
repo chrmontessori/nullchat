@@ -85,7 +85,7 @@ export default function Home() {
     if (loading) return;
     setLoading(true);
     try {
-      // Sequential: avoid allocating 2x64 MiB simultaneously
+      // Sequential: avoid allocating 2x16 MiB simultaneously
       const id = await deriveRoomId(password);
       const key = await deriveKey(password);
       // Tor-isolated rooms use a separate namespace so only other

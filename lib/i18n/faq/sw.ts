@@ -18,7 +18,7 @@ Kiashiria cha nguvu kwenye skrini ya kuingia kinakupa makadirio ya jinsi siri ya
 
 1. Siri inasindikwa kupitia Argon2id — kazi ya kupata ufunguo inayohitaji kumbukumbu kubwa — ikitumia chumvi iliyotengwa kwa kikoa ili kutoa kitambulisho cha chumba. Hashi hii inatumwa kwa seva ili ijue chumba kipi cha kukuunganisha. Seva haioni siri yako halisi kamwe.
 
-2. Siri inaendeshwa kupitia uondoaji wa pili, huru wa Argon2id (kumbukumbu ya 64 MiB, marudio 3) kutoa ufunguo wa usimbaji fiche wa biti 256. Ufunguo huu hauondoki kwenye kivinjari chako kamwe. Argon2id inahitaji vitalu vikubwa vya RAM kwa kila jaribio la kukisia, na kufanya mashambulizi ya nguvu ya GPU na ASIC kwenye nenosiri lako kuwa magumu zaidi kuliko KDF za kitamaduni.
+2. Siri inaendeshwa kupitia uondoaji wa pili, huru wa Argon2id (kumbukumbu ya 16 MiB, marudio 3) kutoa ufunguo wa usimbaji fiche wa biti 256. Ufunguo huu hauondoki kwenye kivinjari chako kamwe. Argon2id inahitaji vitalu vikubwa vya RAM kwa kila jaribio la kukisia, na kufanya mashambulizi ya nguvu ya GPU na ASIC kwenye nenosiri lako kuwa magumu zaidi kuliko KDF za kitamaduni.
 
 Kila ujumbe unaotuma unasimbwa fiche kwa NaCl secretbox (XSalsa20-Poly1305) ukitumia ufunguo huo kabla ya kuondoka kwenye kifaa chako. Seva inapokea, kuhifadhi, na kupeleka maandishi yaliyosimbwa fiche pekee — vipande visivyoeleweka bila ufunguo. Hatuwezi kusoma ujumbe wako. Hakuna mtu anayeweza, isipokuwa anajua siri iliyoshirikiwa.`,
   faq_5_title: "Seva inaona nini?",

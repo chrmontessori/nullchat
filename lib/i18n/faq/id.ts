@@ -18,7 +18,7 @@ Indikator kekuatan di layar masuk memberi Anda gambaran kasar seberapa tahan rah
 
 1. Rahasia diproses melalui Argon2id — fungsi derivasi kunci yang membutuhkan memori besar — menggunakan salt terpisah domain untuk menghasilkan room ID. Hash ini dikirim ke server agar server tahu ruangan mana yang harus menghubungkan Anda. Server tidak pernah melihat rahasia Anda yang sebenarnya.
 
-2. Rahasia dijalankan melalui derivasi Argon2id kedua yang independen (memori 64 MiB, 3 iterasi) untuk menghasilkan kunci enkripsi 256-bit. Kunci ini tidak pernah meninggalkan browser Anda. Argon2id memerlukan blok RAM besar per tebakan, membuat serangan brute-force GPU dan ASIC terhadap kata sandi Anda jauh lebih sulit dibandingkan KDF tradisional.
+2. Rahasia dijalankan melalui derivasi Argon2id kedua yang independen (memori 16 MiB, 3 iterasi) untuk menghasilkan kunci enkripsi 256-bit. Kunci ini tidak pernah meninggalkan browser Anda. Argon2id memerlukan blok RAM besar per tebakan, membuat serangan brute-force GPU dan ASIC terhadap kata sandi Anda jauh lebih sulit dibandingkan KDF tradisional.
 
 Setiap pesan yang Anda kirim dienkripsi dengan NaCl secretbox (XSalsa20-Poly1305) menggunakan kunci tersebut sebelum meninggalkan perangkat Anda. Server menerima, menyimpan, dan meneruskan hanya ciphertext — gumpalan terenkripsi yang tidak bermakna tanpa kunci. Kami tidak bisa membaca pesan Anda. Tidak ada yang bisa, kecuali mereka mengetahui rahasia bersama.`,
   faq_5_title: "Apa yang dilihat server?",

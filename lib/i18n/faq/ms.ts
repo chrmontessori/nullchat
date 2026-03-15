@@ -18,7 +18,7 @@ Penunjuk kekuatan pada skrin masuk memberi anda gambaran kasar tentang sejauh ma
 
 1. Rahsia diproses melalui Argon2id — fungsi terbitan kunci yang memerlukan memori tinggi — menggunakan salt domain-terpisah untuk menghasilkan ID bilik. Hash ini dihantar ke pelayan supaya ia tahu bilik mana untuk menyambungkan anda. Pelayan tidak pernah melihat rahsia sebenar anda.
 
-2. Rahsia dijalankan melalui terbitan Argon2id kedua yang bebas (memori 64 MiB, 3 iterasi) untuk menghasilkan kunci penyulitan 256-bit. Kunci ini tidak pernah meninggalkan pelayar anda. Argon2id memerlukan blok RAM yang besar bagi setiap tekaan, menjadikan serangan brute-force GPU dan ASIC terhadap kata laluan anda jauh lebih sukar berbanding KDF tradisional.
+2. Rahsia dijalankan melalui terbitan Argon2id kedua yang bebas (memori 16 MiB, 3 iterasi) untuk menghasilkan kunci penyulitan 256-bit. Kunci ini tidak pernah meninggalkan pelayar anda. Argon2id memerlukan blok RAM yang besar bagi setiap tekaan, menjadikan serangan brute-force GPU dan ASIC terhadap kata laluan anda jauh lebih sukar berbanding KDF tradisional.
 
 Setiap mesej yang anda hantar disulitkan dengan NaCl secretbox (XSalsa20-Poly1305) menggunakan kunci itu sebelum ia meninggalkan peranti anda. Pelayan menerima, menyimpan, dan menyampaikan hanya teks sifir — gumpalan yang disulitkan yang tidak bermakna tanpa kunci. Kami tidak boleh membaca mesej anda. Tiada siapa yang boleh, melainkan mereka mengetahui rahsia kongsi.`,
   faq_5_title: "Apa yang pelayan lihat?",

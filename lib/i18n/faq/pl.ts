@@ -18,7 +18,7 @@ Wskaźnik siły na ekranie wejściowym daje przybliżone pojęcie o odporności 
 
 1. Sekret jest przetwarzany przez Argon2id — pamięciowo wymagającą funkcję wyprowadzania klucza — z użyciem domeny soli, aby wygenerować identyfikator pokoju. Ten hash jest wysyłany do serwera, aby wiedział, do jakiego pokoju cię połączyć. Serwer nigdy nie widzi twojego właściwego sekretu.
 
-2. Sekret jest przepuszczany przez drugie, niezależne wyprowadzenie Argon2id (64 MiB pamięci, 3 iteracje), aby wygenerować 256-bitowy klucz szyfrowania. Ten klucz nigdy nie opuszcza twojej przeglądarki. Argon2id wymaga dużych bloków pamięci RAM na każdą próbę, co sprawia, że ataki siłowe GPU i ASIC na twoje hasło są o rzędy wielkości trudniejsze niż przy tradycyjnych KDF.
+2. Sekret jest przepuszczany przez drugie, niezależne wyprowadzenie Argon2id (16 MiB pamięci, 3 iteracje), aby wygenerować 256-bitowy klucz szyfrowania. Ten klucz nigdy nie opuszcza twojej przeglądarki. Argon2id wymaga dużych bloków pamięci RAM na każdą próbę, co sprawia, że ataki siłowe GPU i ASIC na twoje hasło są o rzędy wielkości trudniejsze niż przy tradycyjnych KDF.
 
 Każda wiadomość, którą wysyłasz, jest szyfrowana za pomocą NaCl secretbox (XSalsa20-Poly1305) przy użyciu tego klucza, zanim opuści twoje urządzenie. Serwer odbiera, przechowuje i przekazuje wyłącznie szyfrogram — zaszyfrowane bloki danych, które bez klucza są bez znaczenia. Nie możemy czytać twoich wiadomości. Nikt nie może, chyba że zna wspólny sekret.`,
   faq_5_title: "Co widzi serwer?",
