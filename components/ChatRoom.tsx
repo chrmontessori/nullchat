@@ -234,7 +234,11 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
   const keyRef = useRef(encryptionKey);
   keyRef.current = encryptionKey;
   const [stegoMode, setStegoMode] = useState(false);
-  const [stegoDocName, setStegoDocName] = useState("Todays Notes");
+  const [stegoDocName, setStegoDocName] = useState(() => {
+    const d = new Date();
+    const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+    return `${months[d.getMonth()]} ${d.getDate()} Notes`;
+  });
   const stegoInputMounted = useRef(false);
   const [darkMode, setDarkMode] = useState(true);
   const theme = darkMode ? darkTheme : lightTheme;
