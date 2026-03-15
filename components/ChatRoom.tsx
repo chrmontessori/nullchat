@@ -234,7 +234,11 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
   const keyRef = useRef(encryptionKey);
   keyRef.current = encryptionKey;
   const [stegoMode, setStegoMode] = useState(false);
-  const [stegoDocName, setStegoDocName] = useState("Untitled document");
+  const [stegoDocName, setStegoDocName] = useState(() => {
+    const d = new Date();
+    const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+    return `${months[d.getMonth()]} ${d.getDate()} Notes`;
+  });
   const stegoInputMounted = useRef(false);
   const [darkMode, setDarkMode] = useState(true);
   const theme = darkMode ? darkTheme : lightTheme;
@@ -598,32 +602,6 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
   // --- Steganographic mode: disguise as Google Docs ---
   if (stegoMode) {
     const menuItems = ["File", "Edit", "View", "Insert", "Format", "Tools", "Extensions", "Help"];
-    const fonts = ["Arial", "Times New Roman", "Courier New", "Georgia", "Verdana", "Comic Sans MS", "Trebuchet MS", "Roboto"];
-    const sizes = ["8", "9", "10", "11", "12", "14", "16", "18", "20", "24", "28", "36", "48", "72"];
-
-    const exec = (cmd: string, val?: string) => {
-      document.execCommand(cmd, false, val);
-      // Re-focus the editor after toolbar interaction
-      const ed = document.getElementById("stego-editor");
-      if (ed) ed.focus();
-    };
-
-    const tbtn = (label: string, cmd: string, style?: React.CSSProperties) => (
-      <button
-        key={label}
-        onMouseDown={(e) => { e.preventDefault(); exec(cmd); }}
-        style={{
-          background: "none", border: "none", cursor: "pointer",
-          padding: "4px 8px", borderRadius: 4, color: "#444746",
-          fontSize: 14, lineHeight: 1, display: "flex", alignItems: "center",
-          justifyContent: "center", minWidth: 28, minHeight: 28, ...style,
-        }}
-      >{label}</button>
-    );
-
-    const sep = (k: number) => (
-      <div key={`s${k}`} style={{ width: 1, height: 20, background: "#c4c7c5", margin: "0 4px", flexShrink: 0 }} />
-    );
 
     return (
       <div
@@ -636,7 +614,6 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
       >
         {/* Title bar */}
         <div style={{ display: "flex", alignItems: "center", padding: "6px 16px 0", background: "#fff", flexShrink: 0 }}>
-          {/* Docs icon */}
           <svg width="24" height="30" viewBox="0 0 24 30" style={{ marginRight: 6, flexShrink: 0 }}>
             <rect x="2" y="2" width="20" height="26" rx="2" fill="#4285f4" />
             <rect x="7" y="8" width="10" height="1.5" rx="0.75" fill="#fff" />
@@ -658,7 +635,6 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
               onFocus={(e) => { e.currentTarget.style.border = "2px solid #c2e0ff"; e.currentTarget.style.padding = "0 2px"; }}
               onBlur={(e) => { e.currentTarget.style.border = "none"; e.currentTarget.style.padding = "2px 4px"; }}
             />
-            {/* Menu bar - inside title area like modern Docs */}
             <div style={{ display: "flex", alignItems: "center", gap: 0, marginTop: -2, marginLeft: -4 }}>
               {menuItems.map((item) => (
                 <span key={item} style={{
@@ -669,7 +645,6 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
-            {/* Share button */}
             <button style={{
               background: "#c2e7ff", border: "none", borderRadius: 20,
               padding: "8px 20px", fontSize: 14, fontWeight: 500,
@@ -679,7 +654,6 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#001d35" strokeWidth="2.5"><path d="M16 3h5v5M21 3l-9 9M10 5H5a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2v-5" /></svg>
               Share
             </button>
-            {/* Avatar */}
             <div style={{
               width: 32, height: 32, borderRadius: "50%", background: "#1a73e8",
               display: "flex", alignItems: "center", justifyContent: "center",
@@ -693,104 +667,43 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
 
         {/* Toolbar */}
         <div style={{
-          display: "flex", alignItems: "center", padding: "2px 12px",
-          background: "#edf2fa", borderBottom: "1px solid #dadce0",
-          flexShrink: 0, gap: 2, flexWrap: "nowrap", overflow: "hidden",
-          borderRadius: "0 0 0 0", margin: "0 4px 0 4px",
-          borderTopLeftRadius: 24, borderTopRightRadius: 24,
-          borderBottomLeftRadius: 24, borderBottomRightRadius: 24,
-          marginBottom: 0,
+          display: "flex", alignItems: "center", padding: "6px 12px",
+          background: "#edf2fa", flexShrink: 0, gap: 6,
+          margin: "0 4px", borderRadius: 24, overflow: "hidden",
         }}>
-          {/* Undo / Redo */}
-          {tbtn("↩", "undo")}
-          {tbtn("↪", "redo")}
-          {sep(1)}
-          {/* Font family dropdown */}
-          <select
-            onChange={(e) => { exec("fontName", e.target.value); e.target.value = ""; }}
-            defaultValue=""
-            style={{
-              background: "none", border: "none", color: "#444746",
-              fontSize: 13, padding: "4px 2px", cursor: "pointer",
-              outline: "none", minWidth: 90, appearance: "auto" as const,
-              fontFamily: "inherit",
-            }}
-          >
-            <option value="" disabled>Font</option>
-            {fonts.map((f) => <option key={f} value={f} style={{ fontFamily: f }}>{f}</option>)}
-          </select>
-          {sep(2)}
-          {/* Font size dropdown */}
-          <select
-            onChange={(e) => { exec("fontSize", "7"); const sel = window.getSelection(); if (sel && sel.rangeCount) { const span = sel.anchorNode?.parentElement; if (span && span.tagName === "FONT") { span.removeAttribute("size"); span.style.fontSize = `${e.target.value}px`; } } e.target.value = ""; }}
-            defaultValue=""
-            style={{
-              background: "none", border: "none", color: "#444746",
-              fontSize: 13, padding: "4px 2px", cursor: "pointer",
-              outline: "none", minWidth: 40, appearance: "auto" as const,
-            }}
-          >
-            <option value="" disabled>Size</option>
-            {sizes.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-          {sep(3)}
-          {/* Bold / Italic / Underline / Strikethrough */}
-          {tbtn("B", "bold", { fontWeight: 700 })}
-          {tbtn("I", "italic", { fontStyle: "italic" })}
-          {tbtn("U", "underline", { textDecoration: "underline" })}
-          {tbtn("S", "strikeThrough", { textDecoration: "line-through" })}
-          {sep(4)}
-          {/* Text color */}
-          <label style={{ position: "relative", display: "flex", alignItems: "center", cursor: "pointer" }}>
-            <span style={{ fontSize: 14, color: "#444746", padding: "4px 8px", display: "flex", flexDirection: "column", alignItems: "center", lineHeight: 1 }}>
-              A
-              <span style={{ width: 14, height: 3, background: "#000", borderRadius: 1, marginTop: 1 }} />
-            </span>
-            <input
-              type="color"
-              defaultValue="#000000"
-              onChange={(e) => exec("foreColor", e.target.value)}
-              style={{ position: "absolute", opacity: 0, width: 0, height: 0 }}
-            />
-          </label>
-          {/* Highlight color */}
-          <label style={{ position: "relative", display: "flex", alignItems: "center", cursor: "pointer" }}>
-            <span style={{ fontSize: 14, color: "#444746", padding: "4px 8px", display: "flex", flexDirection: "column", alignItems: "center", lineHeight: 1 }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="#444746"><path d="M2 20h20v4H2v-4zm3.49-3h2.42l1.27-3.58h5.65L16.09 17h2.42L13.25 3h-2.5L5.49 17zm4.42-5.61L12 4.67l2.09 6.72H9.91z" /></svg>
-              <span style={{ width: 14, height: 3, background: "#FBBC04", borderRadius: 1, marginTop: 1 }} />
-            </span>
-            <input
-              type="color"
-              defaultValue="#FBBC04"
-              onChange={(e) => exec("hiliteColor", e.target.value)}
-              style={{ position: "absolute", opacity: 0, width: 0, height: 0 }}
-            />
-          </label>
-          {sep(5)}
-          {/* Alignment */}
-          {tbtn("≡", "justifyLeft")}
-          {tbtn("≡", "justifyCenter")}
-          {tbtn("≡", "justifyRight")}
-          {sep(6)}
-          {/* Lists */}
-          <button onMouseDown={(e) => { e.preventDefault(); exec("insertUnorderedList"); }} style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 8px", color: "#444746", fontSize: 13, minWidth: 28, minHeight: 28, borderRadius: 4 }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="#444746"><path d="M4 10.5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zm0-6c-.83 0-1.5.67-1.5 1.5S3.17 7.5 4 7.5 5.5 6.83 5.5 6 4.83 4.5 4 4.5zm0 12c-.83 0-1.5.68-1.5 1.5s.68 1.5 1.5 1.5 1.5-.68 1.5-1.5-.67-1.5-1.5-1.5zM7 19h14v-2H7v2zm0-6h14v-2H7v2zm0-8v2h14V5H7z" /></svg>
-          </button>
-          <button onMouseDown={(e) => { e.preventDefault(); exec("insertOrderedList"); }} style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 8px", color: "#444746", fontSize: 13, minWidth: 28, minHeight: 28, borderRadius: 4 }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="#444746"><path d="M2 17h2v.5H3v1h1v.5H2v1h3v-4H2v1zm1-9h1V4H2v1h1v3zm-1 3h1.8L2 13.1v.9h3v-1H3.2L5 10.9V10H2v1zm5-6v2h14V5H7zm0 14h14v-2H7v2zm0-6h14v-2H7v2z" /></svg>
-          </button>
+          <span style={{ fontSize: 13, color: "#444746", padding: "4px 8px", cursor: "default" }}>↩</span>
+          <span style={{ fontSize: 13, color: "#444746", padding: "4px 8px", cursor: "default" }}>↪</span>
+          <div style={{ width: 1, height: 20, background: "#c4c7c5", margin: "0 2px" }} />
+          <span style={{ fontSize: 13, color: "#444746", padding: "4px 8px", cursor: "default" }}>100%</span>
+          <div style={{ width: 1, height: 20, background: "#c4c7c5", margin: "0 2px" }} />
+          <span style={{ fontSize: 13, color: "#444746", padding: "4px 8px", cursor: "default" }}>Normal text</span>
+          <div style={{ width: 1, height: 20, background: "#c4c7c5", margin: "0 2px" }} />
+          <span style={{ fontSize: 13, color: "#444746", padding: "4px 8px", cursor: "default" }}>Arial</span>
+          <div style={{ width: 1, height: 20, background: "#c4c7c5", margin: "0 2px" }} />
+          <span style={{ fontSize: 13, color: "#444746", padding: "4px 8px", cursor: "default" }}>11</span>
+          <div style={{ width: 1, height: 20, background: "#c4c7c5", margin: "0 2px" }} />
+          <span style={{ fontSize: 14, color: "#444746", padding: "4px 6px", cursor: "default", fontWeight: 700 }}>B</span>
+          <span style={{ fontSize: 14, color: "#444746", padding: "4px 6px", cursor: "default", fontStyle: "italic" }}>I</span>
+          <span style={{ fontSize: 14, color: "#444746", padding: "4px 6px", cursor: "default", textDecoration: "underline" }}>U</span>
+          <span style={{ fontSize: 14, color: "#444746", padding: "4px 6px", cursor: "default" }}>A</span>
         </div>
 
         {/* Document body */}
         <div style={{ flex: 1, overflowY: "auto", background: "#f9fbfd", padding: "20px 0" }}>
           <div
+            onCopy={(e) => e.preventDefault()}
+            onCut={(e) => e.preventDefault()}
+            onContextMenu={(e) => e.preventDefault()}
             style={{
               maxWidth: 816, minHeight: 1056, margin: "0 auto",
               background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.08)",
               borderRadius: 2, padding: "72px 96px",
+              userSelect: "none", WebkitUserSelect: "none",
             }}
           >
-            {/* Received messages */}
+            {messages.length === 0 && historyLoaded && (
+              <p style={{ fontSize: 15, color: "#80868b", fontFamily: "Arial, sans-serif" }}>Start typing...</p>
+            )}
             {messages.map((msg) => (
               <p key={msg.id} style={{
                 fontSize: 15, lineHeight: 1.75, color: "#202124",
@@ -800,47 +713,25 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
                 {msg.text}
               </p>
             ))}
-            {/* Editable area */}
-            <div
-              id="stego-editor"
-              ref={(el) => { if (el && !stegoInputMounted.current) { stegoInputMounted.current = true; el.focus(); } }}
-              contentEditable
-              suppressContentEditableWarning
-              onCopy={(e) => e.preventDefault()}
-              onCut={(e) => e.preventDefault()}
-              onPaste={(e) => {
-                e.preventDefault();
-                const text = e.clipboardData.getData("text/plain");
-                document.execCommand("insertText", false, text);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  const el = document.getElementById("stego-editor");
-                  if (el) {
-                    const text = el.innerText.trim();
-                    if (text && text.length <= MAX_MESSAGE_LENGTH) {
-                      setInput(text);
-                      // Use setTimeout to let setInput propagate before send
-                      setTimeout(() => {
-                        const envelope: MessageEnvelope = { alias: aliasRef.current, text, ts: roundTimestamp(Date.now()) };
-                        const payload = encrypt(envelope, keyRef.current);
-                        if (wsRef.current) wsSendJSON(wsRef.current, { type: "message", payload });
-                        setInput("");
-                        setDeadDropAcked(true);
-                      }, 0);
-                      el.innerHTML = "";
-                    }
-                  }
-                }
-              }}
-              style={{
-                fontSize: 15, lineHeight: 1.75, color: "#202124",
-                fontFamily: "Arial, sans-serif", outline: "none",
-                minHeight: 24, wordBreak: "break-word",
-                caretColor: "#202124",
-              }}
-            />
+            <div style={{ position: "relative" }}>
+              <input
+                ref={(el) => { if (el && !stegoInputMounted.current) { stegoInputMounted.current = true; el.focus(); } }}
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+                placeholder=""
+                maxLength={MAX_MESSAGE_LENGTH}
+                autoComplete="off"
+                spellCheck={false}
+                style={{
+                  width: "100%", background: "transparent", border: "none",
+                  fontSize: 15, lineHeight: 1.75, color: "#202124",
+                  fontFamily: "Arial, sans-serif", padding: 0,
+                  outline: "none", caretColor: "#202124",
+                }}
+              />
+            </div>
             <div ref={bottomRef} />
           </div>
         </div>

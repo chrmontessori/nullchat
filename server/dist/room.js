@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ChatRoom = void 0;
 const crypto_1 = require("crypto");
+const persistence_1 = require("./persistence");
 const DEAD_DROP_TTL = 24 * 60 * 60 * 1000;
 const ACTIVE_TTL = 6 * 60 * 60 * 1000;
 const BURN_TTL = 5 * 60 * 1000;
@@ -22,9 +23,43 @@ class ChatRoom {
     roomMessageCount = 0;
     hasHadReply = false;
     idleTimer = null;
+    persistTimer = null;
     constructor(roomId, onEmpty) {
         this.roomId = roomId;
         this.onEmpty = onEmpty;
+        // Hydrate from disk if persisted state exists
+        const persisted = (0, persistence_1.loadRoom)(roomId);
+        if (persisted) {
+            this.messages = persisted.messages;
+            this.hasHadReply = persisted.hasHadReply;
+            // Restart burn timers for messages already marked as read
+            const now = Date.now();
+            for (const msg of this.messages) {
+                if (msg.readAt !== null) {
+                    const remaining = msg.expiresAt - now;
+                    if (remaining > 0) {
+                        this.restartBurnTimer(msg, remaining);
+                    }
+                }
+            }
+        }
+    }
+    persist() {
+        // Debounce: batch rapid mutations into a single write
+        if (this.persistTimer)
+            return;
+        this.persistTimer = setTimeout(() => {
+            this.persistTimer = null;
+            if (this.messages.length === 0) {
+                (0, persistence_1.deleteRoom)(this.roomId);
+            }
+            else {
+                (0, persistence_1.saveRoom)(this.roomId, {
+                    messages: this.messages,
+                    hasHadReply: this.hasHadReply,
+                });
+            }
+        }, 200);
     }
     getConnections() {
         return [...this.connections.values()];
@@ -59,6 +94,7 @@ class ChatRoom {
             this.broadcast(JSON.stringify({ type: "deleted", ids }));
             if (this.messages.length === 0)
                 this.hasHadReply = false;
+            this.persist();
         }
     }
     restartBurnTimer(msg, remaining) {
@@ -70,6 +106,7 @@ class ChatRoom {
             this.broadcast(JSON.stringify({ type: "deleted", ids: [msg.id] }));
             if (this.messages.length === 0)
                 this.hasHadReply = false;
+            this.persist();
         }, remaining);
         this.burnTimers.set(msg.id, timer);
     }
@@ -86,21 +123,14 @@ class ChatRoom {
             this.broadcast(JSON.stringify({ type: "deleted", ids: [msg.id] }));
             if (this.messages.length === 0)
                 this.hasHadReply = false;
+            this.persist();
         }, BURN_TTL);
         this.burnTimers.set(msg.id, timer);
+        this.persist();
     }
-    presenceTimer = null;
-    // Delay presence broadcasts by a random 5–15 seconds to prevent
-    // network observers from correlating exact join/leave timestamps.
     broadcastPresence() {
-        if (this.presenceTimer)
-            clearTimeout(this.presenceTimer);
-        const delay = 5000 + Math.floor(Math.random() * 10000);
-        this.presenceTimer = setTimeout(() => {
-            this.presenceTimer = null;
-            const count = this.connections.size;
-            this.broadcast(JSON.stringify({ type: "presence", othersHere: count > 1 }));
-        }, delay);
+        const count = this.connections.size;
+        this.broadcast(JSON.stringify({ type: "presence", othersHere: count > 1 }));
     }
     resetIdleTimer() {
         if (this.idleTimer)
@@ -123,8 +153,9 @@ class ChatRoom {
         this.burnTimers.clear();
         if (this.idleTimer)
             clearTimeout(this.idleTimer);
-        if (this.presenceTimer)
-            clearTimeout(this.presenceTimer);
+        if (this.persistTimer)
+            clearTimeout(this.persistTimer);
+        (0, persistence_1.deleteRoom)(this.roomId);
     }
     onConnect(ws) {
         this.resetIdleTimer();
@@ -144,6 +175,7 @@ class ChatRoom {
                     this.startBurnTimer(msg);
             }
         }
+        this.persist();
         // Send history
         const history = this.messages.slice(-MAX_BUFFER).map((m) => ({
             payload: m.payload,
@@ -153,9 +185,6 @@ class ChatRoom {
             expiresAt: m.expiresAt,
         }));
         this.send(conn, JSON.stringify({ type: "history", messages: history }));
-        // Send immediate presence to the connecting client so they know the room state
-        this.send(conn, JSON.stringify({ type: "presence", othersHere: this.connections.size > 1 }));
-        // Delayed broadcast to others (metadata protection)
         this.broadcastPresence();
         return connId;
     }
@@ -181,6 +210,7 @@ class ChatRoom {
                     this.startBurnTimer(msg);
                 }
             }
+            this.persist();
             return;
         }
         if (parsed.type === "terminate") {
@@ -200,6 +230,7 @@ class ChatRoom {
             if (deletedIds.length > 0) {
                 this.broadcast(JSON.stringify({ type: "deleted", ids: deletedIds }));
             }
+            this.persist();
             this.rateLimits.delete(connId);
             conn.ws.close();
             return;
@@ -290,7 +321,7 @@ class ChatRoom {
         if (this.connections.size > 1) {
             this.startBurnTimer(storedMsg);
         }
-        this.broadcastPresence();
+        this.persist();
     }
     onClose(connId) {
         this.connectionTokens.delete(connId);

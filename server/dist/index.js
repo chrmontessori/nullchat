@@ -6,6 +6,7 @@ const crypto_1 = require("crypto");
 const path_1 = require("path");
 const ws_1 = require("ws");
 const room_1 = require("./room");
+const persistence_1 = require("./persistence");
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const STATIC_DIR = (0, path_1.join)(__dirname, "..", "..", "out");
 const TOR_ONLY = process.env.TOR_ONLY === "1";
@@ -204,4 +205,8 @@ const pingInterval = setInterval(() => {
     });
 }, 60_000);
 httpServer.on("close", () => clearInterval(pingInterval));
+// Initialize persistent storage (restricted directory)
+(0, persistence_1.initStorage)();
+// Purge expired room files every 10 minutes
+setInterval(persistence_1.purgeExpiredRooms, 10 * 60 * 1000);
 httpServer.listen(PORT, "127.0.0.1");
