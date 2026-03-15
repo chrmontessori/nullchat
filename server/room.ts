@@ -35,6 +35,7 @@ export class ChatRoom {
   private roomMessageCount = 0;
   private hasHadReply = false;
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
+  private persistTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     public readonly roomId: string,
@@ -59,14 +60,19 @@ export class ChatRoom {
   }
 
   private persist() {
-    if (this.messages.length === 0) {
-      deleteRoom(this.roomId);
-    } else {
-      saveRoom(this.roomId, {
-        messages: this.messages,
-        hasHadReply: this.hasHadReply,
-      });
-    }
+    // Debounce: batch rapid mutations into a single write
+    if (this.persistTimer) return;
+    this.persistTimer = setTimeout(() => {
+      this.persistTimer = null;
+      if (this.messages.length === 0) {
+        deleteRoom(this.roomId);
+      } else {
+        saveRoom(this.roomId, {
+          messages: this.messages,
+          hasHadReply: this.hasHadReply,
+        });
+      }
+    }, 200);
   }
 
   private getConnections(): Connection[] {
@@ -169,6 +175,7 @@ export class ChatRoom {
     for (const timer of this.burnTimers.values()) clearTimeout(timer);
     this.burnTimers.clear();
     if (this.idleTimer) clearTimeout(this.idleTimer);
+    if (this.persistTimer) clearTimeout(this.persistTimer);
     deleteRoom(this.roomId);
   }
 
