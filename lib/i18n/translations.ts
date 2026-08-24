@@ -96,7 +96,7 @@ export const translations: Record<Language, Record<TranslationKey, string>> = {
     e2e_encrypted: "End-to-end encrypted",
     messages_burn: "Messages burn 5 minutes after being received",
     received: "Received",
-    inactive_warning: "Inactive — disconnecting soon",
+    inactive_warning: "Inactive, disconnecting soon",
     stay: "Stay",
     message_placeholder: "Message",
     send: "Send",
@@ -109,7 +109,7 @@ export const translations: Record<Language, Record<TranslationKey, string>> = {
     strong: "strong",
     back: "Back",
     faq_subtitle: "Full transparency on what nullchat does, how it protects you, and what we can and cannot see.",
-    faq_footer: "nullchat — encrypted · anonymous · ephemeral",
+    faq_footer: "nullchat · encrypted · anonymous · ephemeral",
   },
 
   es: {

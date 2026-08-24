@@ -22,7 +22,7 @@ const BURN_TTL = 5 * 60 * 1000;
 const MAX_CONNECTIONS = 50;
 const RATE_LIMIT_MS = 1000;
 const MAX_BUFFER = 50;
-const MAX_PAYLOAD_SIZE = 12000; // 8192 padded plaintext + NaCl overhead + base64 ≈ 11KB
+const MAX_PAYLOAD_SIZE = 22000; // 16384 padded plaintext + NaCl overhead + base64 ≈ 21.9KB
 const ROOM_IDLE_TTL = 5 * 60 * 1000; // garbage collect empty rooms after 5 min
 
 export class ChatRoom {

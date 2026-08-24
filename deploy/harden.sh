@@ -25,7 +25,7 @@ fi
 echo "[3/4] Installing systemd unit..."
 cp /opt/nullchat/deploy/nullchat.service /etc/systemd/system/
 systemctl daemon-reload
-echo "  Unit installed."
+echo "  Unit installed (room state lives in tmpfs /run/nullchat, never on disk)."
 
 # --- Enable and start service ---
 echo "[3/4] Enabling service..."

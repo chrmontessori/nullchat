@@ -572,7 +572,19 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
     const text = input.trim();
     if (!text || !wsRef.current || text.length > MAX_MESSAGE_LENGTH) return;
     const envelope: MessageEnvelope = { alias: aliasRef.current, text, ts: roundTimestamp(Date.now()) };
-    const payload = encrypt(envelope, encryptionKey);
+    let payload: string;
+    try {
+      payload = encrypt(envelope, encryptionKey);
+    } catch {
+      // The 16 KiB fixed frame holds any 4096-char message of normal
+      // text; this only fires on pathological input (thousands of
+      // control chars that JSON-escape to 6 bytes each). Keep the input
+      // intact and show the rate-limit style notice rather than throwing
+      // out of the event handler and dropping the message silently.
+      setError(t("slow_down"));
+      setTimeout(() => setError(null), 2000);
+      return;
+    }
     wsSendJSON(wsRef.current, { type: "message", payload });
     setInput("");
     setDeadDropAcked(true);

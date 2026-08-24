@@ -20,7 +20,7 @@ const BURN_TTL = 5 * 60 * 1000; // 5 minutes after acknowledged/replied
 const MAX_CONNECTIONS = 50;
 const RATE_LIMIT_MS = 1000;
 const MAX_BUFFER = 50;
-const MAX_PAYLOAD_SIZE = 12000; // 8192 padded plaintext + NaCl overhead + base64 ≈ 11KB
+const MAX_PAYLOAD_SIZE = 22000; // 16384 padded plaintext + NaCl overhead + base64 ≈ 21.9KB
 
 export default class ChatRoom implements Party.Server {
   private messages: StoredMessage[] = [];
@@ -235,6 +235,24 @@ export default class ChatRoom implements Party.Server {
       this.rateLimits.delete(sender.id);
       await this.persistState();
       sender.close();
+      return;
+    }
+
+    // Decoy traffic: relay to other clients but do NOT store, rate-limit, or
+    // affect TTL/dead-drop logic. Keeps cover traffic identical on the wire to
+    // real messages. Mirrors the standalone (Tor) server so both paths match.
+    if (parsed.type === "decoy" && parsed.payload) {
+      if (parsed.payload.length > MAX_PAYLOAD_SIZE) return;
+      const relay = JSON.stringify({
+        type: "message",
+        payload: parsed.payload,
+        id: crypto.randomUUID(),
+        ts: Date.now(),
+        expiresAt: Date.now() + 60000, // short expiry; client discards via nop
+      });
+      for (const conn of this.room.getConnections()) {
+        if (conn.id !== sender.id) conn.send(relay);
+      }
       return;
     }
 

@@ -6,9 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "build:tor": "NEXT_PUBLIC_WS_MODE=standalone STATIC_EXPORT=1 next build && tsc -p server/tsconfig.json",
+    "build:tor": "NEXT_PUBLIC_WS_MODE=standalone STATIC_EXPORT=1 next build && node scripts/add-sri.js && tsc -p server/tsconfig.json",
     "start:tor": "node server/dist/index.js",
-    "dev:tor": "NEXT_PUBLIC_WS_MODE=standalone STATIC_EXPORT=1 next build && tsx server/index.ts"
+    "dev:tor": "NEXT_PUBLIC_WS_MODE=standalone STATIC_EXPORT=1 next build && node scripts/add-sri.js && tsx server/index.ts"
   },
   "keywords": [],
   "author": "",

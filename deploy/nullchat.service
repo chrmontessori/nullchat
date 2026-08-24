@@ -13,6 +13,10 @@ WorkingDirectory=/opt/nullchat
 ExecStart=/usr/bin/node /opt/nullchat/server/dist/index.js
 Environment=NODE_ENV=production
 Environment=PORT=3000
+# Room state lives in a tmpfs (RAM) directory, never on disk. See the
+# RuntimeDirectory settings below. Combined with swap being disabled,
+# no room data or metadata is ever written to persistent storage.
+Environment=NULLCHAT_DATA_DIR=/run/nullchat/rooms
 
 # To enable Tor-only mode (reject all non-.onion requests):
 # Environment=TOR_ONLY=1
@@ -30,6 +34,15 @@ NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 ReadOnlyPaths=/opt/nullchat
+# Room state persists to /run/nullchat, which systemd backs with tmpfs
+# (RAM). RuntimeDirectory is writable under ProtectSystem=strict, and
+# RuntimeDirectoryPreserve=yes keeps it across service restarts so an
+# in-flight conversation survives a `systemctl restart`. It is cleared on
+# reboot and never touches disk, so a seized or powered-down box holds no
+# room data or metadata at rest.
+RuntimeDirectory=nullchat
+RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=yes
 TemporaryFileSystem=/tmp:size=64M
 ProtectKernelTunables=true
 ProtectKernelModules=true

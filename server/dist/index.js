@@ -34,7 +34,15 @@ const STATIC_HEADERS = {
     "Onion-Location": `http://${ONION_HOST}`,
     "Alt-Svc": `h2="${ONION_HOST}:80"; ma=86400`,
 };
-function buildCSP(host) {
+// Only reflect a Host value into the CSP if it is a plain hostname or
+// hostname:port. Anything else (stray characters that could break out of
+// the connect-src directive) falls back to the known onion host.
+function safeWsHost(rawHost) {
+    const host = rawHost.toLowerCase();
+    return /^[a-z0-9.-]+(:\d+)?$/.test(host) ? host : ONION_HOST;
+}
+function buildCSP(rawHost) {
+    const host = safeWsHost(rawHost);
     return [
         "default-src 'self'",
         `connect-src 'self' ws://${host} ws://localhost:* ws://127.0.0.1:*`,
@@ -55,9 +63,15 @@ function setSecurityHeaders(req, res) {
         res.setHeader(key, value);
     }
 }
+// Treat a request as arriving over Tor only when its Host matches this
+// service's exact onion address, not any string ending in ".onion". This
+// closes the trivial forgery where a client sends "Host: anything.onion"
+// to reach a tor- room. Note: true network-level Tor-only isolation should
+// run the onion service on a dedicated instance with TOR_ONLY=1, since the
+// Host header is the only signal available at the application layer.
 function isTorConnection(req) {
-    const host = (req.headers.host || "").toLowerCase();
-    return host.endsWith(".onion") || host.includes(".onion:");
+    const host = (req.headers.host || "").toLowerCase().split(":")[0];
+    return host === ONION_HOST;
 }
 function serveStatic(req, res) {
     // Tor-only mode: reject non-.onion requests
@@ -112,11 +126,25 @@ const wss = new ws_1.WebSocketServer({ noServer: true, perMessageDeflate: false 
 const upgradeAttempts = new Map();
 const WS_UPGRADE_LIMIT = 5;
 const WS_UPGRADE_WINDOW = 60_000; // 1 minute
+// Identify the client for rate limiting without trusting attacker-supplied
+// headers. A client can prepend its own X-Forwarded-For, so the leftmost
+// value is spoofable and lets an attacker rotate the key to bypass the cap.
+// Prefer X-Real-IP (set by the reverse proxy), then the rightmost XFF entry
+// (the one the proxy appended), then the socket address.
+function clientKey(req) {
+    const realIp = req.headers["x-real-ip"]?.toString().trim();
+    if (realIp)
+        return realIp;
+    const fwd = req.headers["x-forwarded-for"]?.toString();
+    if (fwd) {
+        const parts = fwd.split(",").map((s) => s.trim()).filter(Boolean);
+        if (parts.length)
+            return parts[parts.length - 1];
+    }
+    return req.socket.remoteAddress || "unknown";
+}
 function isUpgradeRateLimited(req) {
-    // Use a generic key since we don't log real IPs
-    const key = req.headers["x-forwarded-for"]?.toString().split(",")[0]?.trim()
-        || req.socket.remoteAddress
-        || "unknown";
+    const key = clientKey(req);
     const now = Date.now();
     const attempts = (upgradeAttempts.get(key) || []).filter((t) => now - t < WS_UPGRADE_WINDOW);
     if (attempts.length >= WS_UPGRADE_LIMIT)

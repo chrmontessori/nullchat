@@ -18,8 +18,10 @@ export interface MessageEnvelope {
 // Fixed plaintext size before encryption.
 // All messages are padded to exactly this many bytes before secretbox,
 // so every ciphertext is identical length regardless of message content.
-// 8192 bytes covers max message (4096 chars JSON-encoded + envelope overhead).
-const FIXED_PLAINTEXT_SIZE = 8192;
+// Sized to hold a full 4096-char message even when every character is a
+// 3-byte UTF-8 sequence (CJK, Arabic, Cyrillic, etc.) plus envelope and
+// JSON-escaping overhead. An 8 KiB frame overflowed on non-Latin text.
+const FIXED_PLAINTEXT_SIZE = 16384;
 
 export function generateAlias(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(4));
