@@ -149,6 +149,19 @@ The web leaves the least behind. There is nothing to install, nothing to find on
 
 The strongest protection is to verify the code yourself.
 
+## What changed and why
+
+This is a running record of the meaningful changes to nullchat and the reason behind each one.
+
+- **Room data now lives in RAM, not on disk.** Room state used to be written to `/var/lib/nullchat` on the disk. That meant a seized or powered-off server still held the encrypted blobs and their metadata (timing, message counts, who replied to who). We moved room state to a tmpfs directory at `/run/nullchat`, so it lives in memory only. It survives a service restart so live conversations do not drop, and it is gone on reboot. With swap off, nothing about a room ever hits the disk.
+- **Bigger message frame so other languages work.** Every message is padded to a fixed size before encryption so all ciphertext looks the same length. The old frame was 8 KB, which was too small for a full-length message in Chinese, Arabic, or any script that uses more bytes per character. Those messages overflowed the frame and silently failed to send. We raised the frame to 16 KB so a full message in any language fits, and added a guard so the send path can never crash on oversized input.
+- **Integrity hashes are actually applied now.** We advertised SRI hashes so you can confirm the code you load has not been tampered with, but the build was not adding them. The Tor build now runs the SRI step, so every script and style the page loads carries a hash the browser checks.
+- **Cover traffic runs on both networks.** The app sends decoy messages at random intervals to hide when real conversation is happening. The Tor server relayed them, but the clearnet backend was dropping them, so the protection only worked over Tor. Both sides relay decoys now.
+- **Rate limiting no longer trusts a spoofable header.** The connection rate limit keyed off the leftmost `X-Forwarded-For` value, which a client can fake to rotate the key and get around the cap. It now uses the address the reverse proxy sets, which a client cannot forge.
+- **Tor-only rooms check the exact onion address.** The Tor-only check accepted any host ending in `.onion`, so a forged `Host` header could slip into a Tor-only room. It now matches this service's exact onion address.
+- **Host is validated before it goes into the security policy.** The server used to reflect the request `Host` straight into the Content Security Policy. It now checks that the host looks like a plain hostname first, and falls back to the known onion address otherwise.
+- **Aliases are labels, not identities.** The FAQ now spells this out. Anyone who has the shared secret can join a room and set their alias to anything, so treat everyone in a room as someone who knows the secret, and confirm who you are talking to out of band if it matters.
+
 ## License
 
 MIT
