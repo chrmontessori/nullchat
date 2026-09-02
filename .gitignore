@@ -8,3 +8,4 @@ next-env.d.ts
 .vercel
 .DS_Store
 **/.DS_Store
+.partykit/
