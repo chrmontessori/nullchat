@@ -4,7 +4,7 @@ export const pt: Record<FaqKey, string> = {
   faq_1_title: "O que é o nullchat?",
   faq_1_body: `nullchat é uma sala de bate-papo anônima com criptografia de ponta a ponta que não exige contas, e-mails, números de telefone nem qualquer informação pessoal. Você insere um segredo compartilhado — uma senha — e qualquer outra pessoa que inserir a mesma senha entra na mesma sala. Só isso.`,
   faq_2_title: "Como entro em uma sala?",
-  faq_2_body: `Você e a pessoa com quem deseja conversar combinam um segredo compartilhado antecipadamente — pessoalmente, por ligação telefônica, como preferir. Ambos digitam esse segredo no nullchat e entram na mesma sala criptografada. Não existe lista de salas, diretório nem forma de navegar. Se você não sabe o segredo, a sala simplesmente não existe para você.`,
+  faq_2_body: `Você e a pessoa com quem deseja conversar combinam um segredo compartilhado antecipadamente — pessoalmente, por ligação telefônica, como preferir. Ambos digitam esse segredo no nullchat e entram na mesma sala criptografada. Não existe lista de salas, diretório nem forma de navegar. Para entrar, seu navegador precisa provar ao servidor que conhece o segredo, então saber o identificador de uma sala não basta por si só. Se você não sabe o segredo, a sala simplesmente não existe para você.`,
   faq_3_title: "Como devo escolher um segredo compartilhado?",
   faq_3_body: `Seu segredo compartilhado é a peça mais importante da sua segurança. Ele é ao mesmo tempo a chave da sua sala e a chave da sua criptografia — se alguém adivinhá-lo, poderá ler tudo. Trate-o como a senha de um cofre.
 
@@ -14,16 +14,19 @@ Compartilhe seu segredo por um canal seguro e fora de banda — pessoalmente é 
 
 O indicador de força na tela de entrada dá uma noção aproximada de quão resistente seu segredo é a ataques de força bruta, mas nenhum indicador substitui o bom senso. Em caso de dúvida, faça-o mais longo e mais aleatório.`,
   faq_4_title: "Como funciona a criptografia?",
-  faq_4_body: `Quando você insere seu segredo compartilhado, duas coisas acontecem inteiramente no seu navegador:
+  faq_4_body: `Quando você digita seu segredo compartilhado, seu navegador o processa com Argon2id — uma função de derivação de chaves com uso intensivo de memória — em duas derivações separadas. Cada uma tem seu próprio sal e usa 16 MiB de memória e 3 iterações. Tudo isso acontece no seu dispositivo.
 
-1. O segredo é processado pelo Argon2id — uma função de derivação de chave com uso intensivo de memória — usando um salt separado por domínio para produzir um ID de sala. Esse hash é enviado ao servidor para que ele saiba a qual sala conectar você. O servidor nunca vê seu segredo real.
+1. A primeira derivação produz o ID da sala. Ele é enviado ao servidor para que o servidor saiba a qual sala conectar você. O servidor nunca vê o seu segredo real.
 
-2. O segredo passa por uma segunda derivação Argon2id independente (16 MiB de memória, 3 iterações) para produzir uma chave de criptografia de 256 bits. Essa chave nunca sai do seu navegador. O Argon2id exige grandes blocos de RAM por tentativa, tornando ataques de força bruta com GPU e ASIC à sua senha ordens de magnitude mais difíceis do que KDFs tradicionais.
+2. A segunda derivação produz 64 bytes em uma única passagem, que são divididos em dois: uma chave de criptografia de 256 bits e um segredo de acesso à sala. A chave de criptografia nunca sai do seu navegador. O segredo de acesso à sala é o que permite ao seu navegador provar ao servidor que você conhece o segredo compartilhado, e é por isso que saber apenas o ID da sala não basta para entrar em uma sala.
 
-Cada mensagem que você envia é criptografada com NaCl secretbox (XSalsa20-Poly1305) usando essa chave antes de sair do seu dispositivo. O servidor recebe, armazena e retransmite apenas texto cifrado — blocos criptografados que não têm significado sem a chave. Nós não podemos ler suas mensagens. Ninguém pode, a menos que saiba o segredo compartilhado.`,
+Como o Argon2id precisa de um grande bloco de RAM para cada tentativa, adivinhar sua senha por força bruta com GPU e ASIC fica muito mais difícil do que com funções de derivação de chaves mais antigas.
+
+Cada mensagem é criptografada com NaCl secretbox (XSalsa20-Poly1305) usando a chave de criptografia antes de sair do seu dispositivo. O servidor recebe, armazena e retransmite apenas texto cifrado, que não tem sentido sem a chave. Não podemos ler suas mensagens, e ninguém pode, a menos que conheça o segredo compartilhado.`,
   faq_5_title: "O que o servidor vê?",
   faq_5_body: `O servidor vê:
 • Um hash derivado por Argon2id (o ID da sala) — não a sua senha
+• Um valor derivado do seu segredo compartilhado com Argon2id que prova que você o conhece. O servidor guarda apenas um hash desse valor, e ele não revela nem o segredo nem a chave de criptografia.
 • Blocos de texto cifrado criptografado — não as suas mensagens
 • O número de conexões ativas em uma sala
 • Carimbos de data/hora de quando os blocos criptografados foram recebidos
@@ -32,9 +35,9 @@ O servidor NÃO vê:
 • Seu segredo compartilhado / senha
 • O conteúdo das suas mensagens
 • Sua identidade ou nome de usuário (os apelidos são criptografados dentro das mensagens)
-• Seu endereço IP (removido na borda pelo nosso provedor de hospedagem)`,
+• Seu endereço IP (o aplicativo nullchat nunca o recebe; veja "E quanto aos endereços IP?" abaixo)`,
   faq_6_title: "O que é o preenchimento de mensagens?",
-  faq_6_body: `Antes da criptografia, cada mensagem é preenchida até um bloco fixo de 8.192 bytes usando um prefixo de comprimento de 2 bytes seguido pelo conteúdo da mensagem e ruído aleatório. Isso significa que uma mensagem curta como "oi" produz exatamente o mesmo tamanho de texto cifrado que uma mensagem no comprimento máximo. Sem preenchimento, um observador poderia adivinhar o conteúdo da mensagem com base no tamanho do texto cifrado. O preenchimento com ruído aleatório (não zeros) garante que não haja padrão distinguível no texto plano antes da criptografia. O preenchimento elimina esse canal lateral por completo.`,
+  faq_6_body: `Antes da criptografia, cada mensagem é preenchida até um bloco fixo de 16.384 bytes usando um prefixo de comprimento de 2 bytes seguido pelo conteúdo da mensagem e ruído aleatório. Isso significa que uma mensagem curta como "oi" produz exatamente o mesmo tamanho de texto cifrado que uma mensagem no comprimento máximo. Sem preenchimento, um observador poderia adivinhar o conteúdo da mensagem com base no tamanho do texto cifrado. O preenchimento com ruído aleatório (não zeros) garante que não haja padrão distinguível no texto plano antes da criptografia. O preenchimento elimina esse canal lateral por completo.`,
   faq_7_title: "O que é a ofuscação de carimbos de data/hora?",
   faq_7_body: `Os carimbos de data/hora incluídos nas mensagens são arredondados para o minuto mais próximo antes da criptografia. Isso previne ataques de correlação temporal em que um observador poderia combinar padrões de mensagens entre canais diferentes comparando carimbos de data/hora exatos.`,
   faq_8_title: "Quanto tempo as mensagens duram?",
@@ -58,17 +61,21 @@ Você insere o segredo compartilhado, deixa uma mensagem criptografada e descone
 
 O remetente pode se reconectar com segurança a qualquer momento para verificar se sua mensagem ainda está esperando — sem acionar nenhuma contagem regressiva, desde que seja o único na sala. Nenhuma das partes precisa estar online ao mesmo tempo. Nenhuma das partes precisa de uma conta. Nenhuma das partes é identificável. O servidor nunca sabe quem deixou a mensagem ou quem a pegou — apenas que um bloco criptografado foi armazenado e depois recuperado. Após a destruição, não há evidência de que a troca sequer aconteceu.`,
   faq_10_title: "Quanto tempo as salas duram?",
-  faq_10_body: `Uma sala existe enquanto tiver conexões ativas ou mensagens não expiradas. Quando a última pessoa desconecta e todas as mensagens expiraram ou foram destruídas, a sala desaparece. Não há estado persistente de sala. Se nenhuma mensagem for enviada, a sala é apenas uma conexão ao vivo — nada é armazenado e ela desaparece no momento em que todos saem.`,
+  faq_10_body: `Uma sala existe enquanto tiver conexões ativas ou mensagens não expiradas. Quando a última pessoa desconecta e todas as mensagens expiraram ou foram destruídas, a sala desaparece. Nada dela é guardado. Se nenhuma mensagem for enviada, a sala é apenas uma conexão ao vivo — nada é armazenado e ela desaparece no momento em que todos saem.`,
   faq_11_title: "O que é o botão Encerrar?",
   faq_11_body: `Encerrar exclui imediatamente todas as mensagens que você enviou durante sua sessão atual do servidor para todos na sala. Outros participantes verão suas mensagens desaparecerem de suas telas em tempo real. Em seguida, você é desconectado da sala. Use isso se precisar sair sem deixar rastros.`,
   faq_12_title: "O que é o botão Sair?",
   faq_12_body: `Sair simplesmente desconecta você da sala. Suas mensagens permanecem no servidor — mensagens não lidas continuam aguardando (até 24 horas), e mensagens já lidas continuam sua contagem regressiva de destruição de 5 minutos. Se você entrar novamente na sala mais tarde, receberá um novo apelido aleatório — não há como vincular suas identidades antiga e nova.`,
   faq_13_title: "O que são os apelidos aleatórios?",
-  faq_13_body: `Quando você entra em uma sala, recebe um código hexadecimal aleatório de 8 caracteres (como "a9f2b71c") como apelido. Esse apelido é gerado no seu navegador, criptografado dentro de cada mensagem e nunca é enviado ao servidor em texto plano. Se você desconectar e reconectar, recebe um novo apelido. Não há como reservar, escolher ou manter um apelido.`,
+  faq_13_body: `Quando você entra em uma sala, recebe um código hexadecimal aleatório de 8 caracteres (como "a9f2b71c") como apelido. Esse apelido é gerado no seu navegador, criptografado dentro de cada mensagem e nunca é enviado ao servidor em texto plano. Se você desconectar e reconectar, recebe um novo apelido. Não há como reservar, escolher ou manter um apelido.
+
+Um apelido é um rótulo, não uma identidade verificada. Qualquer pessoa que conheça o segredo compartilhado pode entrar na sala e usar o apelido que quiser, então trate todos em uma sala como alguém que tem o segredo. Se você precisa ter certeza de com quem está falando, confirme por outro canal, por exemplo combinando uma palavra-código com antecedência. Só compartilhe um segredo com pessoas em quem você confia.`,
   faq_14_title: "Existe um limite de participantes?",
-  faq_14_body: `Cada sala suporta até 50 conexões simultâneas. Se a sala estiver cheia, você verá uma mensagem "A sala está cheia". Este limite existe para manter as salas íntimas e prevenir abusos.`,
+  faq_14_body: `Cada sala suporta até 50 conexões simultâneas. Se a sala estiver cheia, você verá uma mensagem "A sala está cheia". O servidor como um todo também tem um limite de quantas conexões aceita ao mesmo tempo. Esses limites existem para manter as salas íntimas e prevenir abusos.`,
   faq_15_title: "Existe limitação de taxa?",
-  faq_15_body: `Sim. Cada conexão é limitada a 1 mensagem por segundo. Isso previne spam e abusos sem exigir qualquer verificação de identidade. Se você enviar mensagens rápido demais, verá um breve aviso "Mais devagar".`,
+  faq_15_body: `Sim. Cada conexão é limitada a 1 mensagem por segundo. Cada sala também tem um limite contra inundação, que controla quantas mensagens podem ser enviadas no total em um curto período. Isso previne spam e abusos sem exigir qualquer verificação de identidade. Se você enviar mensagens rápido demais, verá um breve aviso "Mais devagar".
+
+Novas conexões também são limitadas. Na clearnet, o proxy reverso na frente do servidor limita quantas conexões cada endereço de rede pode abrir. O serviço Tor é protegido pelas defesas de prova de trabalho do Tor para serviços onion, que tornam caro inundá-lo com conexões. Nenhuma dessas medidas exige que o aplicativo nullchat receba ou armazene seu endereço IP.`,
   faq_16_title: "Posso acessar o nullchat pelo Tor?",
   faq_16_body_1: `nullchat está disponível como serviço oculto Tor para usuários em regiões censuradas ou qualquer pessoa que deseje uma camada adicional de anonimato. Abra o Tor Browser e navegue até:`,
   faq_16_body_2: `Por padrão, tanto a versão clearnet quanto a versão Tor se conectam ao mesmo backend — usuários em qualquer uma delas podem se comunicar entre si nas mesmas salas usando o mesmo segredo compartilhado. O serviço .onion é roteado pela rede Tor sem Cloudflare, sem CDN e sem infraestrutura de terceiros entre você e o servidor. O Tor roteia sua conexão por múltiplos relays criptografados, de modo que nem o servidor nem qualquer observador podem determinar seu endereço IP real ou localização. O serviço .onion usa HTTP simples, o que é esperado e seguro — o próprio Tor fornece criptografia de ponta a ponta entre seu navegador e o servidor. Toda a mesma criptografia em nível de aplicação (NaCl secretbox, derivação de chave Argon2id) se aplica por cima disso. Nota: O Tor Browser deve estar configurado no nível de segurança "Standard" para o nullchat funcionar, pois o aplicativo requer JavaScript.`,
@@ -88,11 +95,13 @@ Ambas as partes devem concordar em ativar o botão — funciona da mesma forma q
   faq_18_title: "O que é o tempo limite de inatividade?",
   faq_18_body: `Se você ficar inativo por 15 minutos — sem digitar, sem tocar, sem rolar — o nullchat desconectará você automaticamente e retornará à tela de entrada de senha. Um aviso aparece aos 13 minutos dando a opção de permanecer. Isso protege sua sessão caso você se afaste do seu dispositivo, evitando que mensagens sejam destruídas enquanto ninguém está lendo ativamente e garantindo que o chat não fique visível em uma tela sem supervisão.`,
   faq_19_title: "E quanto aos endereços IP?",
-  faq_19_body: `Na clearnet (nullchat.org), o aplicativo é hospedado na rede de borda da Cloudflare. Seu endereço IP é tratado na camada de infraestrutura e nunca é lido, registrado ou armazenado pelo código do aplicativo. O código do servidor não acessa cabeçalhos de IP. Não temos mecanismo para identificá-lo por endereço de rede.
+  faq_19_body: `Na clearnet (nullchat.org), a página web é servida pela Vercel, e a conexão do chat vai até o nosso servidor em ws.nullchat.org por meio de um proxy reverso nginx. Como em qualquer site, quem hospeda a página e o proxy reverso necessariamente veem o endereço IP de onde você se conecta, no momento da conexão. O nginx não repassa seu endereço ao aplicativo nullchat e não o registra, então o aplicativo nunca recebe nem armazena endereços IP de clientes. Se você não quiser que o provedor da página ou o nosso servidor vejam seu endereço IP, use o Tor.
 
 No serviço oculto Tor (.onion), seu endereço IP nunca é visível para o servidor — o roteamento onion do Tor garante anonimato completo na camada de rede. O servidor vê apenas conexões da rede Tor, sem forma de rastreá-las até você.`,
   faq_20_title: "Existem cookies ou rastreadores?",
-  faq_20_body: `Não. O nullchat não define cookies, não usa analytics, não carrega scripts de terceiros, não incorpora pixels de rastreamento e não faz requisições externas. Os cabeçalhos de Content Security Policy impõem isso no nível do navegador. Você pode verificar isso nas ferramentas de desenvolvedor do seu navegador.`,
+  faq_20_body: `Não. O nullchat não define cookies, não usa analytics, não carrega scripts de terceiros, não incorpora pixels de rastreamento e não faz requisições externas. Os cabeçalhos de Content Security Policy impõem isso no nível do navegador. Você pode verificar isso nas ferramentas de desenvolvedor do seu navegador.
+
+Sua escolha de idioma é guardada no sessionStorage apenas para a aba atual e é apagada quando você fecha a aba.`,
   faq_21_title: "Por que não consigo enviar links, imagens ou arquivos?",
   faq_21_body: `Por design. O nullchat é apenas texto — nenhum link, imagem, anexo de arquivo ou mídia de qualquer tipo pode ser enviado ou renderizado. Esta é uma decisão deliberada de segurança, não uma limitação. Links clicáveis e mídia incorporada são a principal superfície de ataque para exploits zero-day usados por spyware comercial como Pegasus, Predator e ferramentas de vigilância similares. Um único link ou arquivo malicioso pode comprometer silenciosamente um dispositivo inteiro. Ao reduzir o chat a apenas texto plano, o nullchat elimina esse vetor de ataque inteiramente. Não há nada para clicar, nada para baixar e nada para renderizar — o que significa nada para explorar.`,
   faq_22_title: "Posso copiar ou fazer capturas de tela das mensagens?",
@@ -100,7 +109,7 @@ No serviço oculto Tor (.onion), seu endereço IP nunca é visível para o servi
 
 Essas são proteções baseadas em fricção, não garantias absolutas. Um usuário determinado sempre pode fotografar sua tela com outro dispositivo ou usar ferramentas no nível do sistema operacional que contornam as restrições do navegador. O objetivo é tornar a captura casual difícil e reforçar a expectativa de que conversas no nullchat não devem ser salvas.`,
   faq_23_title: "O que é tráfego de cobertura?",
-  faq_23_body: `O nullchat envia automaticamente mensagens dummy criptografadas em intervalos aleatórios (a cada 10–60 segundos) enquanto você está conectado a uma sala. Essas mensagens de cobertura são indistinguíveis das mensagens reais — têm o mesmo tamanho (graças ao preenchimento fixo), são criptografadas com a mesma chave e retransmitidas pelo mesmo caminho do servidor. O cliente do destinatário as descarta silenciosamente após a descriptografia.
+  faq_23_body: `O nullchat envia automaticamente mensagens dummy criptografadas em intervalos aleatórios (a cada 10–60 segundos) enquanto você está conectado a uma sala. Essas mensagens de cobertura são indistinguíveis das mensagens reais — têm o mesmo tamanho (graças ao preenchimento fixo), são criptografadas com a mesma chave, retransmitidas pelo mesmo caminho do servidor e produzem entre o seu navegador e o servidor a mesma sequência de frames que uma mensagem real. O cliente do destinatário as descarta silenciosamente após a descriptografia.
 
 O tráfego de cobertura derrota a análise de tráfego. Sem ele, um observador monitorando o tráfego de rede poderia determinar quando uma comunicação real está acontecendo com base em quando blocos criptografados são enviados. Com a cobertura, há um fluxo constante de tráfego com aparência idêntica, independentemente de alguém estar realmente digitando — tornando impossível distinguir mensagens reais de ruído.`,
   faq_24_title: "O que é preenchimento de conexão?",

@@ -4,7 +4,7 @@ export const es: Record<FaqKey, string> = {
   faq_1_title: "¿Qué es nullchat?",
   faq_1_body: `nullchat es una sala de chat anónima con cifrado de extremo a extremo que no requiere cuentas, correos electrónicos, números de teléfono ni información personal de ningún tipo. Introduces un secreto compartido — una contraseña — y cualquier otra persona que introduzca la misma contraseña entra en la misma sala. Eso es todo.`,
   faq_2_title: "¿Cómo me uno a una sala?",
-  faq_2_body: `Tú y la persona con la que quieres hablar acuerdan un secreto compartido de antemano — en persona, por teléfono, como prefieran. Ambos escriben ese secreto en nullchat y entran en la misma sala cifrada. No hay lista de salas, ni directorio, ni forma de explorar. Si no conoces el secreto, la sala no existe para ti.`,
+  faq_2_body: `Tú y la persona con la que quieres hablar acuerdan un secreto compartido de antemano — en persona, por teléfono, como prefieran. Ambos escriben ese secreto en nullchat y entran en la misma sala cifrada. No hay lista de salas, ni directorio, ni forma de explorar. Para entrar, tu navegador tiene que demostrarle al servidor que conoce el secreto, así que conocer el identificador de una sala no basta por sí solo. Si no conoces el secreto, la sala no existe para ti.`,
   faq_3_title: "¿Cómo debo elegir un secreto compartido?",
   faq_3_body: `Tu secreto compartido es el elemento más importante de tu seguridad. Es tanto la llave de tu sala como la llave de tu cifrado — si alguien lo adivina, puede leer todo. Trátalo como la contraseña de una caja fuerte.
 
@@ -14,16 +14,19 @@ Comparte tu secreto a través de un canal seguro fuera de banda — en persona e
 
 El indicador de fortaleza en la pantalla de entrada te da una idea aproximada de la resistencia de tu secreto ante ataques de fuerza bruta, pero ningún indicador sustituye al buen criterio. En caso de duda, hazlo más largo y más aleatorio.`,
   faq_4_title: "¿Cómo funciona el cifrado?",
-  faq_4_body: `Cuando introduces tu secreto compartido, ocurren dos cosas enteramente en tu navegador:
+  faq_4_body: `Cuando introduces tu secreto compartido, tu navegador lo procesa con Argon2id — una función de derivación de claves con uso intensivo de memoria — en dos derivaciones separadas. Cada una tiene su propia sal y usa 16 MiB de memoria y 3 iteraciones. Todo esto ocurre en tu dispositivo.
 
-1. El secreto se procesa a través de Argon2id — una función de derivación de claves con uso intensivo de memoria — utilizando una sal separada por dominio para producir un ID de sala. Este hash se envía al servidor para que sepa a qué sala conectarte. El servidor nunca ve tu secreto real.
+1. La primera derivación produce el ID de sala. Se envía al servidor para que sepa a qué sala conectarte. El servidor nunca ve tu secreto real.
 
-2. El secreto se procesa a través de una segunda derivación independiente de Argon2id (16 MiB de memoria, 3 iteraciones) para producir una clave de cifrado de 256 bits. Esta clave nunca sale de tu navegador. Argon2id requiere grandes bloques de RAM por intento, lo que hace que los ataques de fuerza bruta con GPU y ASIC contra tu contraseña sean órdenes de magnitud más difíciles que con funciones KDF tradicionales.
+2. La segunda derivación produce 64 bytes en una sola pasada, que se dividen en dos: una clave de cifrado de 256 bits y un secreto de acceso a la sala. La clave de cifrado nunca sale de tu navegador. El secreto de acceso a la sala es la forma en que tu navegador demuestra al servidor que conoces el secreto compartido, y por eso conocer solo el ID de sala no basta para unirse a una sala.
 
-Cada mensaje que envías se cifra con NaCl secretbox (XSalsa20-Poly1305) usando esa clave antes de salir de tu dispositivo. El servidor recibe, almacena y retransmite únicamente texto cifrado — bloques cifrados que no tienen sentido sin la clave. No podemos leer tus mensajes. Nadie puede, a menos que conozca el secreto compartido.`,
+Como Argon2id necesita un gran bloque de RAM para cada intento, adivinar tu contraseña por fuerza bruta con GPU y ASIC resulta mucho más difícil que con funciones de derivación de claves más antiguas.
+
+Cada mensaje se cifra con NaCl secretbox (XSalsa20-Poly1305) usando la clave de cifrado antes de salir de tu dispositivo. El servidor recibe, almacena y retransmite únicamente texto cifrado, que no tiene sentido sin la clave. No podemos leer tus mensajes, y nadie puede a menos que conozca el secreto compartido.`,
   faq_5_title: "¿Qué ve el servidor?",
   faq_5_body: `El servidor ve:
 • Un hash derivado de Argon2id (el ID de sala) — no tu contraseña
+• Un valor derivado de tu secreto compartido con Argon2id que demuestra que lo conoces. El servidor solo guarda un hash de este valor, y este no revela ni el secreto ni la clave de cifrado.
 • Bloques de texto cifrado — no tus mensajes
 • El número de conexiones activas en una sala
 • Marcas de tiempo de cuándo se recibieron los bloques cifrados
@@ -32,9 +35,9 @@ El servidor NO ve:
 • Tu secreto compartido / contraseña
 • El contenido de tus mensajes
 • Tu identidad o nombre de usuario (los alias están cifrados dentro de los mensajes)
-• Tu dirección IP (eliminada en el borde por nuestro proveedor de alojamiento)`,
+• Tu dirección IP (la aplicación nullchat nunca la recibe; consulta "¿Qué pasa con las direcciones IP?" más abajo)`,
   faq_6_title: "¿Qué es el relleno de mensajes?",
-  faq_6_body: `Antes del cifrado, cada mensaje se rellena hasta un bloque fijo de 8.192 bytes usando un prefijo de longitud de 2 bytes seguido del contenido del mensaje y ruido aleatorio. Esto significa que un mensaje corto como "hola" produce un texto cifrado del mismo tamaño exacto que un mensaje de longitud máxima. Sin relleno, un observador podría adivinar el contenido del mensaje basándose en la longitud del texto cifrado. El relleno con ruido aleatorio (no ceros) asegura que no haya un patrón distinguible en el texto plano antes del cifrado. El relleno elimina este canal lateral por completo.`,
+  faq_6_body: `Antes del cifrado, cada mensaje se rellena hasta un bloque fijo de 16.384 bytes usando un prefijo de longitud de 2 bytes seguido del contenido del mensaje y ruido aleatorio. Esto significa que un mensaje corto como "hola" produce un texto cifrado del mismo tamaño exacto que un mensaje de longitud máxima. Sin relleno, un observador podría adivinar el contenido del mensaje basándose en la longitud del texto cifrado. El relleno con ruido aleatorio (no ceros) asegura que no haya un patrón distinguible en el texto plano antes del cifrado. El relleno elimina este canal lateral por completo.`,
   faq_7_title: "¿Qué es la ofuscación de marcas de tiempo?",
   faq_7_body: `Las marcas de tiempo incluidas en los mensajes se redondean al minuto más cercano antes del cifrado. Esto previene ataques de correlación temporal en los que un observador podría emparejar patrones de mensajes entre diferentes canales comparando marcas de tiempo exactas.`,
   faq_8_title: "¿Cuánto duran los mensajes?",
@@ -58,17 +61,21 @@ Introduces el secreto compartido, dejas un mensaje cifrado y te desconectas. El 
 
 El remitente puede reconectarse de forma segura en cualquier momento para verificar si su mensaje sigue esperando — sin activar ninguna cuenta regresiva, siempre que sea la única persona en la sala. Ninguna de las partes necesita estar en línea al mismo tiempo. Ninguna de las partes necesita una cuenta. Ninguna de las partes es identificable. El servidor nunca sabe quién dejó el mensaje ni quién lo recogió — solo que un bloque cifrado fue almacenado y luego recuperado. Después de la destrucción, no hay evidencia de que el intercambio haya ocurrido.`,
   faq_10_title: "¿Cuánto duran las salas?",
-  faq_10_body: `Una sala existe mientras tenga conexiones activas o mensajes sin expirar. Una vez que la última persona se desconecta y todos los mensajes han expirado o se han destruido, la sala desaparece. No hay estado persistente de sala. Si nunca se envían mensajes, la sala es solo una conexión en vivo — no se almacena nada, y desaparece en el momento en que todos se van.`,
+  faq_10_body: `Una sala existe mientras tenga conexiones activas o mensajes sin expirar. Una vez que la última persona se desconecta y todos los mensajes han expirado o se han destruido, la sala desaparece. No se conserva nada de ella. Si nunca se envían mensajes, la sala es solo una conexión en vivo — no se almacena nada, y desaparece en el momento en que todos se van.`,
   faq_11_title: "¿Qué es el botón Terminar?",
   faq_11_body: `Terminar elimina inmediatamente todos los mensajes que enviaste durante tu sesión actual del servidor para todos en la sala. Los demás participantes verán tus mensajes desaparecer de su pantalla en tiempo real. Luego serás desconectado de la sala. Úsalo si necesitas irte sin dejar rastro.`,
   faq_12_title: "¿Qué es el botón Salir?",
   faq_12_body: `Salir simplemente te desconecta de la sala. Tus mensajes permanecen en el servidor — los mensajes no leídos siguen esperando (hasta 24 horas) y los mensajes ya leídos continúan su cuenta regresiva de destrucción de 5 minutos. Si vuelves a entrar a la sala más tarde, obtendrás un nuevo alias aleatorio — no hay forma de vincular tu identidad antigua con la nueva.`,
   faq_13_title: "¿Qué son los alias aleatorios?",
-  faq_13_body: `Cuando entras a una sala, se te asigna un código hexadecimal aleatorio de 8 caracteres (como "a9f2b71c") como tu alias. Este alias se genera en tu navegador, se cifra dentro de cada mensaje y nunca se envía al servidor en texto plano. Si te desconectas y vuelves a conectarte, obtienes un nuevo alias. No hay forma de reservar, elegir o mantener un alias.`,
+  faq_13_body: `Cuando entras a una sala, se te asigna un código hexadecimal aleatorio de 8 caracteres (como "a9f2b71c") como tu alias. Este alias se genera en tu navegador, se cifra dentro de cada mensaje y nunca se envía al servidor en texto plano. Si te desconectas y vuelves a conectarte, obtienes un nuevo alias. No hay forma de reservar, elegir o mantener un alias.
+
+Un alias es una etiqueta, no una identidad verificada. Cualquiera que conozca el secreto compartido puede unirse a la sala y ponerse el alias que quiera, así que trata a todos los presentes en una sala como alguien que tiene el secreto. Si necesitas estar seguro de con quién hablas, confírmalo por otro canal, por ejemplo acordando de antemano una palabra clave. Comparte un secreto solo con personas de tu confianza.`,
   faq_14_title: "¿Hay un límite de participantes?",
-  faq_14_body: `Cada sala admite hasta 50 conexiones simultáneas. Si la sala está llena, verás un mensaje de "La sala está llena". Este límite existe para mantener las salas íntimas y prevenir el abuso.`,
+  faq_14_body: `Cada sala admite hasta 50 conexiones simultáneas. Si la sala está llena, verás un mensaje de "La sala está llena". El servidor en su conjunto también tiene un límite de cuántas conexiones acepta a la vez. Estos límites existen para mantener las salas íntimas y prevenir el abuso.`,
   faq_15_title: "¿Hay limitación de velocidad?",
-  faq_15_body: `Sí. Cada conexión está limitada a 1 mensaje por segundo. Esto previene el spam y el abuso sin requerir ninguna verificación de identidad. Si envías mensajes demasiado rápido, verás un breve aviso de "Más despacio".`,
+  faq_15_body: `Sí. Cada conexión está limitada a 1 mensaje por segundo. Cada sala tiene además un límite contra la saturación que controla cuántos mensajes pueden enviarse en total en un periodo corto. Esto previene el spam y el abuso sin requerir ninguna verificación de identidad. Si envías mensajes demasiado rápido, verás un breve aviso de "Más despacio".
+
+Las conexiones nuevas también están limitadas. En la clearnet, el proxy inverso situado delante del servidor limita cuántas conexiones puede abrir cada dirección de red. El servicio de Tor está protegido por las defensas de prueba de trabajo de Tor para servicios onion, que hacen costoso saturarlo con conexiones. Ninguna de estas medidas requiere que la aplicación nullchat reciba o almacene tu dirección IP.`,
   faq_16_title: "¿Puedo acceder a nullchat a través de Tor?",
   faq_16_body_1: `nullchat está disponible como servicio oculto de Tor para usuarios en regiones censuradas o cualquier persona que desee una capa adicional de anonimato. Abre Tor Browser y navega a:`,
   faq_16_body_2: `Por defecto, tanto la versión clearnet como la de Tor se conectan al mismo backend — los usuarios en cualquiera de las dos pueden comunicarse entre sí en las mismas salas usando el mismo secreto compartido. El servicio .onion se enruta a través de la red de Tor sin Cloudflare, sin CDN y sin infraestructura de terceros entre tú y el servidor. Tor enruta tu conexión a través de múltiples relés cifrados, de modo que ni el servidor ni ningún observador pueden determinar tu dirección IP real o ubicación. El servicio .onion usa HTTP plano, lo cual es esperado y seguro — Tor en sí proporciona cifrado de extremo a extremo entre tu navegador y el servidor. Todo el mismo cifrado a nivel de aplicación (NaCl secretbox, derivación de claves Argon2id) se aplica encima de eso. Nota: Tor Browser debe estar configurado en el nivel de seguridad "Standard" para que nullchat funcione, ya que la aplicación requiere JavaScript.`,
@@ -88,11 +95,13 @@ Ambas partes deben acordar activar el interruptor — funciona de la misma maner
   faq_18_title: "¿Qué es el tiempo de espera por inactividad?",
   faq_18_body: `Si estás inactivo durante 15 minutos — sin escribir, sin tocar, sin desplazarte — nullchat te desconectará automáticamente y te devolverá a la pantalla de entrada de contraseña. Una advertencia aparece a los 13 minutos dándote la opción de quedarte. Esto protege tu sesión si te alejas de tu dispositivo, evitando que los mensajes se destruyan mientras nadie los lee activamente, y asegurando que el chat no quede visible en una pantalla desatendida.`,
   faq_19_title: "¿Qué pasa con las direcciones IP?",
-  faq_19_body: `En la clearnet (nullchat.org), la aplicación está alojada en la red perimetral de Cloudflare. Tu dirección IP se maneja a nivel de infraestructura y nunca es leída, registrada ni almacenada por el código de la aplicación. El código del servidor no accede a los encabezados de IP. No tenemos ningún mecanismo para identificarte por dirección de red.
+  faq_19_body: `En la clearnet (nullchat.org), la página web la sirve Vercel, y la conexión del chat va a nuestro servidor en ws.nullchat.org a través de un proxy inverso nginx. Como en cualquier sitio web, el alojamiento de la página y el proxy inverso ven necesariamente la dirección IP desde la que te conectas en el momento de conectarte. nginx no transmite tu dirección a la aplicación nullchat ni la registra, así que la aplicación nunca recibe ni almacena direcciones IP de los clientes. Si no quieres que el alojamiento de la página ni nuestro servidor vean tu dirección IP, usa Tor.
 
 En el servicio oculto de Tor (.onion), tu dirección IP nunca es visible para el servidor en absoluto — el enrutamiento onion de Tor garantiza anonimato completo a nivel de red. El servidor solo ve conexiones desde la red de Tor, sin forma de rastrearlas hasta ti.`,
   faq_20_title: "¿Hay cookies o rastreadores?",
-  faq_20_body: `No. nullchat no establece cookies, no usa analíticas, no carga scripts de terceros, no incrusta píxeles de rastreo y no realiza solicitudes externas. Los encabezados de Content Security Policy lo aplican a nivel de navegador. Puedes verificarlo en las herramientas de desarrollo de tu navegador.`,
+  faq_20_body: `No. nullchat no establece cookies, no usa analíticas, no carga scripts de terceros, no incrusta píxeles de rastreo y no realiza solicitudes externas. Los encabezados de Content Security Policy lo aplican a nivel de navegador. Puedes verificarlo en las herramientas de desarrollo de tu navegador.
+
+Tu elección de idioma se guarda en sessionStorage solo para la pestaña actual y se borra cuando cierras la pestaña.`,
   faq_21_title: "¿Por qué no puedo enviar enlaces, imágenes o archivos?",
   faq_21_body: `Por diseño. nullchat es solo texto — no se pueden enviar ni renderizar enlaces, imágenes, archivos adjuntos ni medios de ningún tipo. Esta es una decisión de seguridad deliberada, no una limitación. Los enlaces clicables y los medios incrustados son la principal superficie de ataque para exploits de día cero utilizados por spyware comercial como Pegasus, Predator y herramientas de vigilancia similares. Un solo enlace o archivo malicioso puede comprometer silenciosamente un dispositivo completo. Al reducir el chat a solo texto plano, nullchat elimina este vector de ataque por completo. No hay nada que hacer clic, nada que descargar y nada que renderizar — lo que significa nada que explotar.`,
   faq_22_title: "¿Puedo copiar o capturar pantalla de los mensajes?",
@@ -100,7 +109,7 @@ En el servicio oculto de Tor (.onion), tu dirección IP nunca es visible para el
 
 Estas son protecciones basadas en fricción, no garantías absolutas. Un usuario determinado siempre puede fotografiar su pantalla con otro dispositivo o usar herramientas a nivel de sistema operativo que evaden las restricciones del navegador. El objetivo es dificultar la captura casual y reforzar la expectativa de que las conversaciones en nullchat no están destinadas a ser guardadas.`,
   faq_23_title: "¿Qué es el tráfico señuelo?",
-  faq_23_body: `nullchat envía automáticamente mensajes ficticios cifrados a intervalos aleatorios (cada 10–60 segundos) mientras estás conectado a una sala. Estos mensajes señuelo son indistinguibles de los mensajes reales — tienen el mismo tamaño (gracias al relleno fijo), están cifrados con la misma clave y se retransmiten por la misma ruta del servidor. El cliente del destinatario los descarta silenciosamente después del descifrado.
+  faq_23_body: `nullchat envía automáticamente mensajes ficticios cifrados a intervalos aleatorios (cada 10–60 segundos) mientras estás conectado a una sala. Estos mensajes señuelo son indistinguibles de los mensajes reales — tienen el mismo tamaño (gracias al relleno fijo), están cifrados con la misma clave, se retransmiten por la misma ruta del servidor y producen la misma secuencia de tramas entre tu navegador y el servidor que un mensaje real. El cliente del destinatario los descarta silenciosamente después del descifrado.
 
 El tráfico señuelo derrota el análisis de tráfico. Sin él, un observador que monitoree el tráfico de red podría determinar cuándo se produce comunicación real basándose en cuándo se envían los bloques cifrados. Con los señuelos, hay un flujo constante de tráfico de apariencia idéntica independientemente de si alguien está escribiendo realmente — haciendo imposible distinguir mensajes reales del ruido.`,
   faq_24_title: "¿Qué es el relleno de conexión?",

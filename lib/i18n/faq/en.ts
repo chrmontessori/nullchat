@@ -4,7 +4,7 @@ export const en: Record<FaqKey, string> = {
   faq_1_title: "What is nullchat?",
   faq_1_body: `nullchat is an anonymous, end-to-end encrypted chat room. It needs no account, no email, no phone number, and no personal information. You enter a shared secret (a password), and anyone else who enters the same secret lands in the same room.`,
   faq_2_title: "How do I join a room?",
-  faq_2_body: `You and the person you want to talk to agree on a shared secret ahead of time, in person or over a phone call, whatever works for you. You both type that secret into nullchat and you are in the same encrypted room. There is no room list, no directory, and no way to browse. If you do not know the secret, the room does not exist to you.`,
+  faq_2_body: `You and the person you want to talk to agree on a shared secret ahead of time, in person or over a phone call, whatever works for you. You both type that secret into nullchat and you are in the same encrypted room. There is no room list, no directory, and no way to browse. To get in, your browser has to prove to the server that it knows the secret, so knowing a room's identifier is not enough on its own. If you do not know the secret, the room does not exist to you.`,
   faq_3_title: "How should I choose a shared secret?",
   faq_3_body: `Your shared secret is the most important part of your security. It is both the key to your room and the key to your encryption, so if someone guesses it, they can read everything. Treat it like the combination to a safe.
 
@@ -14,16 +14,19 @@ Share your secret through a secure channel that is separate from nullchat. In pe
 
 The strength indicator on the entry screen gives you a rough sense of how hard your secret is to brute-force, but it is no substitute for good judgment. When in doubt, make it longer and more random.`,
   faq_4_title: "How does the encryption work?",
-  faq_4_body: `When you enter your shared secret, two things happen entirely in your browser:
+  faq_4_body: `When you enter your shared secret, your browser runs it through Argon2id, a memory-hard key derivation function, in two separate derivations. Each one has its own salt and uses 16 MiB of memory and 3 iterations. All of this happens on your device.
 
-1. The secret is run through Argon2id, a memory-hard key derivation function, using a domain-separated salt to produce a room ID. That hash is sent to the server so it knows which room to connect you to. The server never sees your actual secret.
+1. The first derivation produces the room ID. It is sent to the server so the server knows which room to connect you to. The server never sees your actual secret.
 
-2. The secret is run through a second, independent Argon2id derivation (16 MiB memory, 3 iterations) to produce a 256-bit encryption key. This key never leaves your browser. Because Argon2id needs a large block of RAM for every guess, it makes GPU and ASIC brute-force attacks on your password far harder than older key derivation functions.
+2. The second derivation produces 64 bytes in a single pass, which are split in two: a 256-bit encryption key and a room-access secret. The encryption key never leaves your browser. The room-access secret is how your browser proves to the server that you know the shared secret, which is why knowing the room ID alone is not enough to join a room.
 
-Every message is encrypted with NaCl secretbox (XSalsa20-Poly1305) using that key before it leaves your device. The server receives, stores, and relays only ciphertext, which is meaningless without the key. We cannot read your messages, and no one can unless they know the shared secret.`,
+Because Argon2id needs a large block of RAM for every guess, it makes GPU and ASIC brute-force attacks on your password far harder than older key derivation functions.
+
+Every message is encrypted with NaCl secretbox (XSalsa20-Poly1305) using the encryption key before it leaves your device. The server receives, stores, and relays only ciphertext, which is meaningless without the key. We cannot read your messages, and no one can unless they know the shared secret.`,
   faq_5_title: "What does the server see?",
   faq_5_body: `The server sees:
 • An Argon2id-derived hash (the room ID), not your password
+• A value derived from your shared secret with Argon2id that proves you know it. The server keeps only a hash of it, and it reveals neither the secret nor the encryption key.
 • Encrypted ciphertext blobs, not your messages
 • The number of active connections in a room
 • Timestamps of when encrypted blobs arrived
@@ -32,7 +35,7 @@ The server does NOT see:
 • Your shared secret or password
 • Your message content
 • Your identity or username (aliases are encrypted inside messages)
-• Your IP address (stripped at the edge by our hosting provider)`,
+• Your IP address (the nullchat application never receives it; see "What about IP addresses?" below)`,
   faq_6_title: "What is message padding?",
   faq_6_body: `Before encryption, every message is padded to a fixed 16,384-byte block: a 2-byte length prefix, then the message content, then random noise. A short message like "hi" ends up the same ciphertext size as a message at the maximum length. Without padding, someone watching the traffic could guess at message content from the size of the ciphertext. Filling the remainder with random bytes rather than zeros means the plaintext has no tell-tale pattern before encryption either.`,
   faq_7_title: "What is timestamp obfuscation?",
@@ -68,9 +71,11 @@ The sender can reconnect at any time to check whether the message is still waiti
 
 An alias is a label, not a verified identity. Anyone who knows the shared secret can join the room and can set their alias to anything, so treat everyone in a room as someone who has the secret. If you need to be sure who you are talking to, confirm it out of band, for example by agreeing on a code word in advance. Only share a secret with people you trust.`,
   faq_14_title: "Is there a participant limit?",
-  faq_14_body: `Each room supports up to 50 connections at once. If the room is full, you will see a "Room is full" message. This limit keeps rooms small and helps prevent abuse.`,
+  faq_14_body: `Each room supports up to 50 connections at once. If the room is full, you will see a "Room is full" message. The server as a whole also has a limit on how many connections it accepts at once. These limits keep rooms small and help prevent abuse.`,
   faq_15_title: "Is there rate limiting?",
-  faq_15_body: `Yes. Each connection is limited to one message per second. This prevents spam and abuse without asking for any identity verification. If you send messages too quickly, you will see a brief "Slow down" notice.`,
+  faq_15_body: `Yes. Each connection is limited to one message per second. Each room also has a flood limit on how many messages can be sent in total over a short period. This prevents spam and abuse without asking for any identity verification. If you send messages too quickly, you will see a brief "Slow down" notice.
+
+New connections are limited too. On the clearnet, the reverse proxy in front of the server limits how many connections each network address can open. The Tor service is protected by Tor's proof-of-work defenses for onion services, which make flooding it with connections expensive. Neither of these requires the nullchat application to receive or store your IP address.`,
   faq_16_title: "Can I access nullchat over Tor?",
   faq_16_body_1: `nullchat is available as a Tor hidden service for people in censored regions or anyone who wants an extra layer of anonymity. Open Tor Browser and go to:`,
   faq_16_body_2: `By default, the clearnet and Tor versions connect to the same backend, so people on either side can talk to each other in the same rooms using the same shared secret. The .onion service routes through Tor's network with no Cloudflare, no CDN, and no third-party infrastructure between you and the server. Tor sends your connection through several encrypted relays, so neither the server nor anyone watching can work out your real IP address or location. The .onion service uses plain HTTP, which is expected and safe here, because Tor already encrypts everything between your browser and the server. All the usual application-level encryption (NaCl secretbox, Argon2id key derivation) still applies on top of that. Note: Tor Browser must be set to "Standard" security level for nullchat to work, because the app needs JavaScript.`,
@@ -90,11 +95,13 @@ Both people have to turn the toggle on, the same way you both agree on the share
   faq_18_title: "What is the inactivity timeout?",
   faq_18_body: `If you go inactive for 15 minutes, with no typing, tapping, or scrolling, nullchat disconnects you and returns you to the password entry screen. A warning appears at 13 minutes so you can choose to stay. This protects your session if you walk away from your device: it keeps messages from burning while no one is reading, and it keeps the chat from sitting visible on an unattended screen.`,
   faq_19_title: "What about IP addresses?",
-  faq_19_body: `On the clearnet (nullchat.org), the app is hosted on Cloudflare's edge network. Your IP address is handled at the infrastructure layer and is never read, logged, or stored by the application code. The server code does not touch IP headers. We have no way to identify you by network address.
+  faq_19_body: `On the clearnet (nullchat.org), the web page is served by Vercel, and the chat connection goes to our server at ws.nullchat.org through an nginx reverse proxy. Like any website, the page host and the reverse proxy necessarily see the IP address you connect from at the moment you connect. nginx does not pass your address on to the nullchat application and does not log it, so the application never receives or stores client IP addresses. If you do not want the page host or our server to see your IP address, use Tor.
 
 On the Tor hidden service (.onion), your IP address is never visible to the server at all, because Tor's onion routing gives you full network-level anonymity. The server only sees connections coming from the Tor network, with no way to trace them back to you.`,
   faq_20_title: "Are there any cookies or trackers?",
-  faq_20_body: `No. nullchat sets no cookies, uses no analytics, loads no third-party scripts, embeds no tracking pixels, and makes no external requests. The Content Security Policy headers enforce this at the browser level. You can check it yourself in your browser's developer tools.`,
+  faq_20_body: `No. nullchat sets no cookies, uses no analytics, loads no third-party scripts, embeds no tracking pixels, and makes no external requests. The Content Security Policy headers enforce this at the browser level. You can check it yourself in your browser's developer tools.
+
+Your language choice is kept in sessionStorage for the current tab only, and it is cleared when you close the tab.`,
   faq_21_title: "Why can't I send links, images, or files?",
   faq_21_body: `This is on purpose. nullchat is text only. No links, images, file attachments, or media of any kind can be sent or shown. That is a deliberate security choice, not a missing feature. Clickable links and embedded media are the main way commercial spyware like Pegasus and Predator delivers zero-day exploits. A single malicious link or file can quietly compromise a whole device. By keeping the chat to plain text, nullchat removes that attack surface. There is nothing to click, download, or render, so there is nothing to exploit.`,
   faq_22_title: "Can I copy or screenshot messages?",
@@ -102,7 +109,7 @@ On the Tor hidden service (.onion), your IP address is never visible to the serv
 
 These are speed bumps, not guarantees. A determined person can always photograph the screen with another device or use operating-system tools that get around browser restrictions. The point is to make casual capture annoying and to set the expectation that conversations here are not meant to be saved.`,
   faq_23_title: "What is decoy traffic?",
-  faq_23_body: `While you are connected to a room, nullchat sends encrypted dummy messages at random intervals, roughly every 10 to 60 seconds. These decoys look exactly like real messages: the same size (thanks to fixed padding), encrypted with the same key, and relayed over the same server path. The recipient's client quietly throws them away after decryption.
+  faq_23_body: `While you are connected to a room, nullchat sends encrypted dummy messages at random intervals, roughly every 10 to 60 seconds. These decoys look exactly like real messages: they are the same size (thanks to fixed padding), encrypted with the same key, relayed over the same server path, and they produce the same sequence of frames between your browser and the server as a real message does. The recipient's client quietly throws them away after decryption.
 
 Decoy traffic defeats traffic analysis. Without it, someone watching the network could tell when real communication is happening from when encrypted blobs go out. With decoys, there is a steady stream of identical-looking traffic whether or not anyone is typing, so real messages cannot be picked out from the noise.`,
   faq_24_title: "What is connection padding?",

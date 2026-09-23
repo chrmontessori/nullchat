@@ -4,7 +4,7 @@ export const tr: Record<FaqKey, string> = {
   faq_1_title: "nullchat nedir?",
   faq_1_body: `nullchat; hesap, e-posta, telefon numarası veya herhangi bir kişisel bilgi gerektirmeyen anonim, uçtan uca şifreli bir sohbet odasıdır. Ortak bir sır — bir parola — girersiniz ve aynı parolayı giren herkes aynı odaya düşer. Hepsi bu.`,
   faq_2_title: "Bir odaya nasıl katılırım?",
-  faq_2_body: `Siz ve konuşmak istediğiniz kişi önceden ortak bir sır üzerinde anlaşırsınız — yüz yüze, telefon görüşmesiyle veya istediğiniz herhangi bir yolla. İkiniz de bu sırrı nullchat'e yazarsınız ve aynı şifreli odadasınız. Oda listesi yok, dizin yok, göz atma imkanı yok. Sırrı bilmiyorsanız, oda sizin için mevcut değildir.`,
+  faq_2_body: `Siz ve konuşmak istediğiniz kişi önceden ortak bir sır üzerinde anlaşırsınız — yüz yüze, telefon görüşmesiyle veya istediğiniz herhangi bir yolla. İkiniz de bu sırrı nullchat'e yazarsınız ve aynı şifreli odadasınız. Oda listesi yok, dizin yok, göz atma imkanı yok. İçeri girebilmek için tarayıcınızın sunucuya sırrı bildiğini kanıtlaması gerekir; yani bir odanın tanımlayıcısını bilmek tek başına yeterli değildir. Sırrı bilmiyorsanız, oda sizin için mevcut değildir.`,
   faq_3_title: "Ortak sırrı nasıl seçmeliyim?",
   faq_3_body: `Ortak sırrınız güvenliğinizin en kritik parçasıdır. Hem odanızın anahtarı hem de şifrelemenizin anahtarıdır — birisi tahmin ederse her şeyi okuyabilir. Bir kasanın şifresi gibi davranın.
 
@@ -14,16 +14,19 @@ Sırrınızı güvenli, bant dışı bir kanal üzerinden paylaşın — yüz y�
 
 Giriş ekranındaki güç göstergesi, sırrınızın kaba kuvvet saldırılarına ne kadar dayanıklı olduğu hakkında kabaca bir fikir verir, ancak hiçbir gösterge sağduyunun yerini tutmaz. Şüphe duyduğunuzda daha uzun ve daha rastgele yapın.`,
   faq_4_title: "Şifreleme nasıl çalışır?",
-  faq_4_body: `Ortak sırrınızı girdiğinizde, tamamen tarayıcınızda iki şey gerçekleşir:
+  faq_4_body: `Ortak sırrınızı girdiğinizde, tarayıcınız onu bellek yoğun bir anahtar türetme fonksiyonu olan Argon2id ile iki ayrı türetmeden geçirir. Her türetmenin kendi tuzu vardır ve her biri 16 MiB bellek ile 3 yineleme kullanır. Bunların hepsi cihazınızda gerçekleşir.
 
-1. Sır, alan adına özgü bir tuz kullanılarak Argon2id — bellek yoğun bir anahtar türetme fonksiyonu — ile işlenir ve bir oda kimliği üretilir. Bu hash, sunucuya sizi hangi odaya bağlayacağını bildirmek için gönderilir. Sunucu gerçek sırrınızı asla görmez.
+1. İlk türetme oda kimliğini üretir. Oda kimliği, sunucunun sizi hangi odaya bağlayacağını bilmesi için sunucuya gönderilir. Sunucu gerçek sırrınızı asla görmez.
 
-2. Sır, 256 bit şifreleme anahtarı üretmek için ikinci, bağımsız bir Argon2id türetmesinden (16 MiB bellek, 3 yineleme) geçirilir. Bu anahtar tarayıcınızdan asla çıkmaz. Argon2id her tahmin için büyük RAM blokları gerektirir, bu da GPU ve ASIC kaba kuvvet saldırılarını geleneksel KDF'lere göre çok daha zor hale getirir.
+2. İkinci türetme tek bir geçişte 64 bayt üretir ve bu baytlar ikiye bölünür: 256 bitlik bir şifreleme anahtarı ve bir oda erişim sırrı. Şifreleme anahtarı tarayıcınızdan asla çıkmaz. Oda erişim sırrı, tarayıcınızın ortak sırrı bildiğinizi sunucuya kanıtlama yoludur; bu yüzden bir odaya katılmak için oda kimliğini bilmek tek başına yeterli değildir.
 
-Gönderdiğiniz her mesaj, cihazınızdan ayrılmadan önce bu anahtar kullanılarak NaCl secretbox (XSalsa20-Poly1305) ile şifrelenir. Sunucu yalnızca şifreli metin — anahtar olmadan anlamsız olan şifreli veri parçaları — alır, saklar ve iletir. Mesajlarınızı okuyamayız. Ortak sırrı bilmedikçe kimse okuyamaz.`,
+Argon2id her tahmin için büyük bir RAM bloğu gerektirdiğinden, parolanızı GPU ve ASIC ile kaba kuvvetle tahmin etmek eski anahtar türetme fonksiyonlarına göre çok daha zordur.
+
+Her mesaj, cihazınızdan ayrılmadan önce şifreleme anahtarı kullanılarak NaCl secretbox (XSalsa20-Poly1305) ile şifrelenir. Sunucu yalnızca anahtar olmadan anlamsız olan şifreli metni alır, saklar ve iletir. Mesajlarınızı okuyamayız; ortak sırrı bilmedikçe kimse okuyamaz.`,
   faq_5_title: "Sunucu ne görür?",
   faq_5_body: `Sunucu şunları görür:
 • Argon2id ile türetilmiş bir hash (oda kimliği) — parolanızı değil
+• Ortak sırrınızdan Argon2id ile türetilen ve sırrı bildiğinizi kanıtlayan bir değer. Sunucu bu değerin yalnızca bir hash'ini saklar; bu değer ne sırrı ne de şifreleme anahtarını açığa çıkarır.
 • Şifreli metin parçaları — mesajlarınızı değil
 • Bir odadaki aktif bağlantı sayısı
 • Şifreli veri parçalarının alındığı zaman damgaları
@@ -32,9 +35,9 @@ Sunucu şunları GÖRMEZ:
 • Ortak sırrınız / parolanız
 • Mesaj içeriğiniz
 • Kimliğiniz veya kullanıcı adınız (takma adlar mesajların içinde şifrelenir)
-• IP adresiniz (barındırma sağlayıcımız tarafından uç noktada kaldırılır)`,
+• IP adresiniz (nullchat uygulaması onu asla almaz; aşağıdaki "IP adresleri ne olacak?" bölümüne bakın)`,
   faq_6_title: "Mesaj dolgusu nedir?",
-  faq_6_body: `Şifrelemeden önce, her mesaj 2 baytlık uzunluk öneki, ardından mesaj içeriği ve rastgele gürültü kullanılarak sabit 8.192 baytlık bir bloğa doldurulur. Bu, "merhaba" gibi kısa bir mesajın maksimum uzunluktaki bir mesajla tam olarak aynı boyutta şifreli metin ürettiği anlamına gelir. Dolgu olmadan, bir gözlemci şifreli metin uzunluğuna bakarak mesaj içeriğini tahmin edebilir. Rastgele gürültü dolgusu (sıfırlar değil), şifrelemeden önce düz metinde ayırt edilebilir bir kalıp olmamasını sağlar. Dolgu bu yan kanalı tamamen ortadan kaldırır.`,
+  faq_6_body: `Şifrelemeden önce, her mesaj 2 baytlık uzunluk öneki, ardından mesaj içeriği ve rastgele gürültü kullanılarak sabit 16.384 baytlık bir bloğa doldurulur. Bu, "merhaba" gibi kısa bir mesajın maksimum uzunluktaki bir mesajla tam olarak aynı boyutta şifreli metin ürettiği anlamına gelir. Dolgu olmadan, bir gözlemci şifreli metin uzunluğuna bakarak mesaj içeriğini tahmin edebilir. Rastgele gürültü dolgusu (sıfırlar değil), şifrelemeden önce düz metinde ayırt edilebilir bir kalıp olmamasını sağlar. Dolgu bu yan kanalı tamamen ortadan kaldırır.`,
   faq_7_title: "Zaman damgası gizleme nedir?",
   faq_7_body: `Mesajlara dahil edilen zaman damgaları, şifrelemeden önce en yakın dakikaya yuvarlanır. Bu, bir gözlemcinin tam zaman damgalarını karşılaştırarak farklı kanallardaki mesaj kalıplarını eşleştirebileceği zamanlama korelasyon saldırılarını önler.`,
   faq_8_title: "Mesajlar ne kadar süre kalır?",
@@ -58,17 +61,21 @@ Ortak sırrı girersiniz, şifreli bir mesaj bırakırsınız ve bağlantıyı k
 
 Gönderen, odada tek kişi olduğu sürece herhangi bir geri sayımı tetiklemeden mesajının hâlâ bekleyip beklemediğini kontrol etmek için güvenle yeniden bağlanabilir. İki tarafın da aynı anda çevrimiçi olması gerekmez. İki tarafın da hesaba ihtiyacı yoktur. İki taraftan hiçbiri tanımlanabilir değildir. Sunucu mesajı kimin bıraktığını veya kimin aldığını asla bilemez — yalnızca şifreli bir veri parçasının saklandığını ve daha sonra alındığını bilir. Yakmadan sonra, değişimin gerçekleştiğine dair hiçbir kanıt kalmaz.`,
   faq_10_title: "Odalar ne kadar süre kalır?",
-  faq_10_body: `Bir oda, aktif bağlantıları veya süresi dolmamış mesajları olduğu sürece var olur. Son kişi bağlantıyı kestiğinde ve tüm mesajların süresi dolduğunda veya yandığında, oda yok olur. Kalıcı oda durumu yoktur. Hiçbir mesaj gönderilmezse, oda sadece canlı bir bağlantıdır — hiçbir şey saklanmaz ve herkes ayrıldığı anda kaybolur.`,
+  faq_10_body: `Bir oda, aktif bağlantıları veya süresi dolmamış mesajları olduğu sürece var olur. Son kişi bağlantıyı kestiğinde ve tüm mesajların süresi dolduğunda veya yandığında, oda yok olur. Ondan geriye hiçbir şey kalmaz. Hiçbir mesaj gönderilmezse, oda sadece canlı bir bağlantıdır — hiçbir şey saklanmaz ve herkes ayrıldığı anda kaybolur.`,
   faq_11_title: "Sonlandır düğmesi nedir?",
   faq_11_body: `Sonlandır, mevcut oturumunuz sırasında gönderdiğiniz tüm mesajları sunucudan, odadaki herkes için anında siler. Diğer katılımcılar mesajlarınızın ekranlarından gerçek zamanlı olarak kaybolduğunu görür. Ardından odadan bağlantınız kesilir. İz bırakmadan ayrılmanız gerekiyorsa bunu kullanın.`,
   faq_12_title: "Ayrıl düğmesi nedir?",
   faq_12_body: `Ayrıl sizi odadan basitçe bağlantıyı keser. Mesajlarınız sunucuda kalır — okunmamış mesajlar beklemeye devam eder (24 saate kadar) ve okunmuş mesajlar 5 dakikalık yakma geri sayımına devam eder. Odaya daha sonra yeniden katılırsanız, yeni bir rastgele takma ad alırsınız — eski ve yeni kimliklerinizi bağlamanın bir yolu yoktur.`,
   faq_13_title: "Rastgele takma adlar nedir?",
-  faq_13_body: `Bir odaya girdiğinizde, takma adınız olarak rastgele 8 karakterlik bir onaltılık kod (örneğin "a9f2b71c") atanır. Bu takma ad tarayıcınızda oluşturulur, her mesajın içinde şifrelenir ve sunucuya asla düz metin olarak gönderilmez. Bağlantıyı kesip yeniden bağlanırsanız, yeni bir takma ad alırsınız. Bir takma adı ayırtmanın, seçmenin veya kalıcı kılmanın yolu yoktur.`,
+  faq_13_body: `Bir odaya girdiğinizde, takma adınız olarak rastgele 8 karakterlik bir onaltılık kod (örneğin "a9f2b71c") atanır. Bu takma ad tarayıcınızda oluşturulur, her mesajın içinde şifrelenir ve sunucuya asla düz metin olarak gönderilmez. Bağlantıyı kesip yeniden bağlanırsanız, yeni bir takma ad alırsınız. Bir takma adı ayırtmanın, seçmenin veya kalıcı kılmanın yolu yoktur.
+
+Takma ad bir etikettir, doğrulanmış bir kimlik değildir. Ortak sırrı bilen herkes odaya katılabilir ve takma adını istediği gibi ayarlayabilir; bu yüzden odadaki herkesi sırrı bilen biri olarak kabul edin. Kiminle konuştuğunuzdan emin olmanız gerekiyorsa, bunu bant dışı bir yolla doğrulayın; örneğin önceden bir kod kelime üzerinde anlaşarak. Sırrı yalnızca güvendiğiniz kişilerle paylaşın.`,
   faq_14_title: "Katılımcı sınırı var mı?",
-  faq_14_body: `Her oda en fazla 50 eşzamanlı bağlantıyı destekler. Oda doluysa, "Oda dolu" mesajı görürsünüz. Bu sınır, odaları samimi tutmak ve kötüye kullanımı önlemek için mevcuttur.`,
+  faq_14_body: `Her oda en fazla 50 eşzamanlı bağlantıyı destekler. Oda doluysa, "Oda dolu" mesajı görürsünüz. Sunucunun genelinde de aynı anda kabul ettiği bağlantı sayısına bir sınır vardır. Bu sınırlar, odaları samimi tutmak ve kötüye kullanımı önlemek için mevcuttur.`,
   faq_15_title: "Hız sınırlaması var mı?",
-  faq_15_body: `Evet. Her bağlantı saniyede 1 mesajla sınırlıdır. Bu, herhangi bir kimlik doğrulaması gerektirmeden spam ve kötüye kullanımı önler. Mesajları çok hızlı gönderirseniz, kısa bir "Yavaşlayın" uyarısı görürsünüz.`,
+  faq_15_body: `Evet. Her bağlantı saniyede 1 mesajla sınırlıdır. Her odanın ayrıca kısa bir süre içinde toplamda gönderilebilecek mesaj sayısını sınırlayan bir mesaj seli (flood) sınırı vardır. Bu, herhangi bir kimlik doğrulaması gerektirmeden spam ve kötüye kullanımı önler. Mesajları çok hızlı gönderirseniz, kısa bir "Yavaşlayın" uyarısı görürsünüz.
+
+Yeni bağlantılar da sınırlıdır. Clearnet'te, sunucunun önündeki ters proxy her ağ adresinin açabileceği bağlantı sayısını sınırlar. Tor servisi, Tor'un onion servisleri için iş kanıtı (proof-of-work) savunmalarıyla korunur; bu savunmalar servisi bağlantılarla boğmayı maliyetli hale getirir. Bunların hiçbiri nullchat uygulamasının IP adresinizi almasını veya saklamasını gerektirmez.`,
   faq_16_title: "nullchat'e Tor üzerinden erişebilir miyim?",
   faq_16_body_1: `nullchat, sansürlü bölgelerdeki kullanıcılar veya ek bir anonimlik katmanı isteyen herkes için Tor gizli servisi olarak kullanılabilir. Tor Browser'ı açın ve şu adrese gidin:`,
   faq_16_body_2: `Varsayılan olarak, hem clearnet hem de Tor sürümleri aynı arka uca bağlanır — her ikisindeki kullanıcılar aynı ortak sırrı kullanarak aynı odalarda birbirleriyle iletişim kurabilir. .onion servisi, sizinle sunucu arasında Cloudflare, CDN ve üçüncü taraf altyapı olmadan Tor ağı üzerinden yönlendirilir. Tor bağlantınızı birden fazla şifreli aktarıcı üzerinden yönlendirir, böylece ne sunucu ne de herhangi bir gözlemci gerçek IP adresinizi veya konumunuzu belirleyebilir. .onion servisi düz HTTP kullanır, bu beklenen ve güvenli bir durumdur — Tor'un kendisi tarayıcınız ile sunucu arasında uçtan uca şifreleme sağlar. Tüm aynı uygulama düzeyinde şifreleme (NaCl secretbox, Argon2id anahtar türetme) bunun üzerine uygulanır. Not: nullchat'in çalışması için Tor Browser "Standart" güvenlik düzeyine ayarlanmalıdır, çünkü uygulama JavaScript gerektirir.`,
@@ -88,11 +95,13 @@ Her iki tarafın da geçişi etkinleştirmesi konusunda anlaşması gerekir — 
   faq_18_title: "Hareketsizlik zaman aşımı nedir?",
   faq_18_body: `15 dakika boyunca hareketsiz kalırsanız — yazma, dokunma, kaydırma yok — nullchat sizi otomatik olarak bağlantıyı keser ve parola giriş ekranına döndürür. 13. dakikada kalma seçeneği sunan bir uyarı görünür. Bu, cihazınızdan uzaklaşmanız durumunda oturumunuzu korur, kimse aktif olarak okumuyorken mesajların yanmasını önler ve sohbetin gözetimsiz bir ekranda görünür kalmamasını sağlar.`,
   faq_19_title: "IP adresleri ne olacak?",
-  faq_19_body: `Clearnet'te (nullchat.org), uygulama Cloudflare'ın uç ağında barındırılır. IP adresiniz altyapı katmanında işlenir ve uygulama kodu tarafından asla okunmaz, kaydedilmez veya saklanmaz. Sunucu kodu IP başlıklarına erişmez. Sizi ağ adresiyle tanımlama mekanizmamız yoktur.
+  faq_19_body: `Clearnet'te (nullchat.org), web sayfası Vercel tarafından sunulur ve sohbet bağlantısı bir nginx ters proxy üzerinden ws.nullchat.org adresindeki sunucumuza gider. Her web sitesinde olduğu gibi, sayfa barındırıcısı ve ters proxy, bağlandığınız anda bağlandığınız IP adresini zorunlu olarak görür. nginx adresinizi nullchat uygulamasına iletmez ve kaydetmez; bu nedenle uygulama istemci IP adreslerini asla almaz ve saklamaz. Sayfa barındırıcısının veya sunucumuzun IP adresinizi görmesini istemiyorsanız Tor kullanın.
 
 Tor gizli servisinde (.onion), IP adresiniz sunucuya hiçbir şekilde görünür değildir — Tor'un soğan yönlendirmesi tam ağ düzeyinde anonimlik sağlar. Sunucu yalnızca Tor ağından gelen bağlantıları görür ve bunları size kadar izlemenin yolu yoktur.`,
   faq_20_title: "Çerez veya izleyici var mı?",
-  faq_20_body: `Hayır. nullchat çerez koymaz, analitik kullanmaz, üçüncü taraf betikleri yüklemez, izleme pikselleri gömmez ve harici istek yapmaz. Content Security Policy başlıkları bunu tarayıcı düzeyinde zorunlu kılar. Bunu tarayıcınızın geliştirici araçlarından doğrulayabilirsiniz.`,
+  faq_20_body: `Hayır. nullchat çerez koymaz, analitik kullanmaz, üçüncü taraf betikleri yüklemez, izleme pikselleri gömmez ve harici istek yapmaz. Content Security Policy başlıkları bunu tarayıcı düzeyinde zorunlu kılar. Bunu tarayıcınızın geliştirici araçlarından doğrulayabilirsiniz.
+
+Dil tercihiniz yalnızca geçerli sekme için sessionStorage'da tutulur ve sekmeyi kapattığınızda silinir.`,
   faq_21_title: "Neden bağlantı, resim veya dosya gönderemiyorum?",
   faq_21_body: `Tasarım gereği. nullchat yalnızca metin tabanlıdır — hiçbir bağlantı, resim, dosya eki veya herhangi bir medya gönderilemez veya görüntülenemez. Bu bilinçli bir güvenlik kararıdır, bir kısıtlama değil. Tıklanabilir bağlantılar ve gömülü medya, Pegasus, Predator ve benzeri ticari casus yazılımlar tarafından kullanılan sıfır gün istismarlarının birincil saldırı yüzeyidir. Tek bir kötü amaçlı bağlantı veya dosya tüm bir cihazı sessizce ele geçirebilir. Sohbeti yalnızca düz metne indirgeyerek, nullchat bu saldırı vektörünü tamamen ortadan kaldırır. Tıklayacak, indirecek ve işleyecek hiçbir şey yok — bu da istismar edilecek hiçbir şey olmadığı anlamına gelir.`,
   faq_22_title: "Mesajları kopyalayabilir veya ekran görüntüsü alabilir miyim?",
@@ -100,7 +109,7 @@ Tor gizli servisinde (.onion), IP adresiniz sunucuya hiçbir şekilde görünür
 
 Bunlar sürtünme tabanlı korumalardır, mutlak garantiler değildir. Kararlı bir kullanıcı her zaman ekranını başka bir cihazla fotoğraflayabilir veya tarayıcı kısıtlamalarını atlayan işletim sistemi düzeyinde araçlar kullanabilir. Amaç, gündelik yakalamayı zorlaştırmak ve nullchat'teki konuşmaların kaydedilmek üzere tasarlanmadığı beklentisini pekiştirmektir.`,
   faq_23_title: "Sahte trafik nedir?",
-  faq_23_body: `nullchat, bir odaya bağlıyken rastgele aralıklarla (her 10–60 saniyede) otomatik olarak şifreli sahte mesajlar gönderir. Bu sahte mesajlar gerçek mesajlardan ayırt edilemez — aynı boyuttadırlar (sabit dolgu sayesinde), aynı anahtarla şifrelenir ve aynı sunucu yolu üzerinden iletilir. Alıcının istemcisi bunları şifre çözdükten sonra sessizce atar.
+  faq_23_body: `nullchat, bir odaya bağlıyken rastgele aralıklarla (her 10–60 saniyede) otomatik olarak şifreli sahte mesajlar gönderir. Bu sahte mesajlar gerçek mesajlardan ayırt edilemez — aynı boyuttadırlar (sabit dolgu sayesinde), aynı anahtarla şifrelenir, aynı sunucu yolu üzerinden iletilir ve tarayıcınız ile sunucu arasında gerçek bir mesajın ürettiği çerçeve dizisinin aynısını üretirler. Alıcının istemcisi bunları şifre çözdükten sonra sessizce atar.
 
 Sahte trafik, trafik analizini yener. Bu olmadan, ağ trafiğini izleyen bir gözlemci, şifreli veri parçalarının ne zaman gönderildiğine bakarak gerçek iletişimin ne zaman gerçekleştiğini belirleyebilir. Sahte trafikle, herhangi birinin gerçekten yazıp yazmadığına bakılmaksızın sürekli bir aynı görünümlü trafik akışı vardır — bu da gerçek mesajları gürültüden ayırt etmeyi imkansız kılar.`,
   faq_24_title: "Bağlantı dolgusu nedir?",

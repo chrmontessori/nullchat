@@ -4,7 +4,7 @@ export const ms: Record<FaqKey, string> = {
   faq_1_title: "Apa itu nullchat?",
   faq_1_body: `nullchat ialah bilik sembang tanpa nama yang disulitkan hujung-ke-hujung, tanpa memerlukan akaun, emel, nombor telefon, atau sebarang maklumat peribadi. Anda memasukkan rahsia kongsi — kata laluan — dan sesiapa yang memasukkan kata laluan yang sama akan berada dalam bilik yang sama. Itu sahaja.`,
   faq_2_title: "Bagaimana saya menyertai bilik?",
-  faq_2_body: `Anda dan orang yang ingin anda bercakap bersetuju tentang rahsia kongsi terlebih dahulu — secara bersemuka, melalui panggilan telefon, walau apa cara sekalipun. Kedua-dua pihak menaip rahsia itu ke dalam nullchat dan anda berada dalam bilik yang sama yang disulitkan. Tiada senarai bilik, tiada direktori, tiada cara untuk melayari. Jika anda tidak tahu rahsia itu, bilik itu tidak wujud bagi anda.`,
+  faq_2_body: `Anda dan orang yang ingin anda bercakap bersetuju tentang rahsia kongsi terlebih dahulu — secara bersemuka, melalui panggilan telefon, walau apa cara sekalipun. Kedua-dua pihak menaip rahsia itu ke dalam nullchat dan anda berada dalam bilik yang sama yang disulitkan. Tiada senarai bilik, tiada direktori, tiada cara untuk melayari. Untuk masuk, pelayar anda perlu membuktikan kepada pelayan bahawa ia mengetahui rahsia itu, jadi mengetahui pengecam bilik sahaja tidak mencukupi. Jika anda tidak tahu rahsia itu, bilik itu tidak wujud bagi anda.`,
   faq_3_title: "Bagaimana saya memilih rahsia kongsi?",
   faq_3_body: `Rahsia kongsi anda ialah bahagian paling penting dalam keselamatan anda. Ia adalah kunci kepada bilik anda dan juga kunci kepada penyulitan anda — jika seseorang menekanya, mereka boleh membaca segala-galanya. Anggaplah ia seperti kata laluan kepada peti besi.
 
@@ -14,16 +14,19 @@ Kongsikan rahsia anda melalui saluran luar yang selamat — secara bersemuka ada
 
 Penunjuk kekuatan pada skrin masuk memberi anda gambaran kasar tentang sejauh mana rahsia anda tahan terhadap serangan brute-force, tetapi tiada penunjuk yang boleh menggantikan pertimbangan yang baik. Jika ragu-ragu, jadikan ia lebih panjang dan lebih rawak.`,
   faq_4_title: "Bagaimana penyulitan berfungsi?",
-  faq_4_body: `Apabila anda memasukkan rahsia kongsi, dua perkara berlaku sepenuhnya dalam pelayar anda:
+  faq_4_body: `Apabila anda memasukkan rahsia kongsi, pelayar anda memprosesnya melalui Argon2id — fungsi terbitan kunci yang memerlukan memori tinggi — dalam dua terbitan berasingan. Setiap satu mempunyai salt tersendiri dan menggunakan memori 16 MiB serta 3 iterasi. Semua ini berlaku pada peranti anda.
 
-1. Rahsia diproses melalui Argon2id — fungsi terbitan kunci yang memerlukan memori tinggi — menggunakan salt domain-terpisah untuk menghasilkan ID bilik. Hash ini dihantar ke pelayan supaya ia tahu bilik mana untuk menyambungkan anda. Pelayan tidak pernah melihat rahsia sebenar anda.
+1. Terbitan pertama menghasilkan ID bilik. ID bilik dihantar ke pelayan supaya pelayan tahu bilik mana untuk menyambungkan anda. Pelayan tidak pernah melihat rahsia sebenar anda.
 
-2. Rahsia dijalankan melalui terbitan Argon2id kedua yang bebas (memori 16 MiB, 3 iterasi) untuk menghasilkan kunci penyulitan 256-bit. Kunci ini tidak pernah meninggalkan pelayar anda. Argon2id memerlukan blok RAM yang besar bagi setiap tekaan, menjadikan serangan brute-force GPU dan ASIC terhadap kata laluan anda jauh lebih sukar berbanding KDF tradisional.
+2. Terbitan kedua menghasilkan 64 bait dalam satu laluan, yang dibahagikan kepada dua: kunci penyulitan 256-bit dan rahsia akses bilik. Kunci penyulitan tidak pernah meninggalkan pelayar anda. Rahsia akses bilik ialah cara pelayar anda membuktikan kepada pelayan bahawa anda mengetahui rahsia kongsi, dan itulah sebabnya mengetahui ID bilik sahaja tidak mencukupi untuk menyertai bilik.
 
-Setiap mesej yang anda hantar disulitkan dengan NaCl secretbox (XSalsa20-Poly1305) menggunakan kunci itu sebelum ia meninggalkan peranti anda. Pelayan menerima, menyimpan, dan menyampaikan hanya teks sifir — gumpalan yang disulitkan yang tidak bermakna tanpa kunci. Kami tidak boleh membaca mesej anda. Tiada siapa yang boleh, melainkan mereka mengetahui rahsia kongsi.`,
+Oleh sebab Argon2id memerlukan blok RAM yang besar bagi setiap tekaan, usaha meneka kata laluan anda secara brute-force menggunakan GPU dan ASIC menjadi jauh lebih sukar berbanding fungsi terbitan kunci yang lebih lama.
+
+Setiap mesej disulitkan dengan NaCl secretbox (XSalsa20-Poly1305) menggunakan kunci penyulitan sebelum ia meninggalkan peranti anda. Pelayan hanya menerima, menyimpan, dan menyampaikan teks sifir, yang tidak bermakna tanpa kunci. Kami tidak boleh membaca mesej anda, dan tiada siapa yang boleh melainkan mereka mengetahui rahsia kongsi.`,
   faq_5_title: "Apa yang pelayan lihat?",
   faq_5_body: `Pelayan melihat:
 • Hash terbitan Argon2id (ID bilik) — bukan kata laluan anda
+• Nilai yang diterbitkan daripada rahsia kongsi anda dengan Argon2id yang membuktikan anda mengetahuinya. Pelayan hanya menyimpan hash nilai tersebut, dan ia tidak mendedahkan rahsia mahupun kunci penyulitan.
 • Gumpalan teks sifir yang disulitkan — bukan mesej anda
 • Bilangan sambungan aktif dalam bilik
 • Cap masa bila gumpalan yang disulitkan diterima
@@ -32,9 +35,9 @@ Pelayan TIDAK melihat:
 • Rahsia kongsi / kata laluan anda
 • Kandungan mesej anda
 • Identiti atau nama pengguna anda (alias disulitkan di dalam mesej)
-• Alamat IP anda (dilucutkan di tepi oleh penyedia pengehosan kami)`,
+• Alamat IP anda (aplikasi nullchat tidak pernah menerimanya; lihat "Bagaimana dengan alamat IP?" di bawah)`,
   faq_6_title: "Apa itu padding mesej?",
-  faq_6_body: `Sebelum penyulitan, setiap mesej ditambah padding kepada blok tetap 8,192 bait menggunakan awalan panjang 2 bait diikuti oleh kandungan mesej dan hingar rawak. Ini bermakna mesej pendek seperti "hi" menghasilkan saiz teks sifir yang sama persis seperti mesej pada panjang maksimum. Tanpa padding, pemerhati boleh meneka kandungan mesej berdasarkan panjang teks sifir. Pengisian hingar rawak (bukan sifar) memastikan tiada corak yang boleh dibezakan dalam teks biasa sebelum penyulitan. Padding menghapuskan saluran sampingan ini sepenuhnya.`,
+  faq_6_body: `Sebelum penyulitan, setiap mesej ditambah padding kepada blok tetap 16,384 bait menggunakan awalan panjang 2 bait diikuti oleh kandungan mesej dan hingar rawak. Ini bermakna mesej pendek seperti "hi" menghasilkan saiz teks sifir yang sama persis seperti mesej pada panjang maksimum. Tanpa padding, pemerhati boleh meneka kandungan mesej berdasarkan panjang teks sifir. Pengisian hingar rawak (bukan sifar) memastikan tiada corak yang boleh dibezakan dalam teks biasa sebelum penyulitan. Padding menghapuskan saluran sampingan ini sepenuhnya.`,
   faq_7_title: "Apa itu pengeliruan cap masa?",
   faq_7_body: `Cap masa yang disertakan dalam mesej dibundarkan kepada minit terdekat sebelum penyulitan. Ini menghalang serangan korelasi masa di mana pemerhati boleh memadankan corak mesej merentas saluran yang berbeza dengan membandingkan cap masa yang tepat.`,
   faq_8_title: "Berapa lama mesej bertahan?",
@@ -58,17 +61,21 @@ Anda memasukkan rahsia kongsi, meninggalkan mesej yang disulitkan, dan memutuska
 
 Pengirim boleh menyambung semula dengan selamat pada bila-bila masa untuk memeriksa sama ada mesej mereka masih menunggu — tanpa mencetuskan sebarang kira detik, selagi mereka seorang sahaja dalam bilik. Tiada pihak perlu dalam talian pada masa yang sama. Tiada pihak memerlukan akaun. Tiada pihak boleh dikenal pasti. Pelayan tidak pernah tahu siapa yang meninggalkan mesej atau siapa yang mengambilnya — hanya bahawa gumpalan yang disulitkan telah disimpan dan kemudian diambil. Selepas pembakaran, tiada bukti bahawa pertukaran itu pernah berlaku.`,
   faq_10_title: "Berapa lama bilik bertahan?",
-  faq_10_body: `Bilik wujud selagi ia mempunyai sambungan aktif atau mesej yang belum tamat tempoh. Setelah orang terakhir memutuskan sambungan dan semua mesej telah tamat tempoh atau dibakar, bilik itu hilang. Tiada keadaan bilik yang kekal. Jika tiada mesej yang pernah dihantar, bilik itu hanyalah sambungan langsung — tiada apa yang disimpan, dan ia hilang sebaik sahaja semua orang keluar.`,
+  faq_10_body: `Bilik wujud selagi ia mempunyai sambungan aktif atau mesej yang belum tamat tempoh. Setelah orang terakhir memutuskan sambungan dan semua mesej telah tamat tempoh atau dibakar, bilik itu hilang. Tiada apa-apa yang tinggal daripadanya. Jika tiada mesej yang pernah dihantar, bilik itu hanyalah sambungan langsung — tiada apa yang disimpan, dan ia hilang sebaik sahaja semua orang keluar.`,
   faq_11_title: "Apa itu butang Tamatkan?",
   faq_11_body: `Tamatkan segera memadam setiap mesej yang anda hantar semasa sesi semasa anda dari pelayan untuk semua orang dalam bilik. Peserta lain akan melihat mesej anda hilang dari skrin mereka secara masa nyata. Anda kemudian diputuskan sambungan dari bilik. Gunakan ini jika anda perlu keluar tanpa meninggalkan jejak.`,
   faq_12_title: "Apa itu butang Keluar?",
   faq_12_body: `Keluar hanya memutuskan sambungan anda dari bilik. Mesej anda kekal di pelayan — mesej yang belum dibaca terus menunggu (sehingga 24 jam), dan mesej yang sudah dibaca meneruskan kira detik pembakaran 5 minit mereka. Jika anda menyertai semula bilik kemudian, anda akan mendapat alias rawak baharu — tiada cara untuk menghubungkan identiti lama dan baharu anda.`,
   faq_13_title: "Apa itu alias rawak?",
-  faq_13_body: `Apabila anda memasuki bilik, anda diberikan kod hex rawak 8 aksara (seperti "a9f2b71c") sebagai alias anda. Alias ini dijana dalam pelayar anda, disulitkan di dalam setiap mesej, dan tidak pernah dihantar ke pelayan dalam teks biasa. Jika anda memutuskan sambungan dan menyambung semula, anda mendapat alias baharu. Tiada cara untuk menempah, memilih, atau mengekalkan alias.`,
+  faq_13_body: `Apabila anda memasuki bilik, anda diberikan kod hex rawak 8 aksara (seperti "a9f2b71c") sebagai alias anda. Alias ini dijana dalam pelayar anda, disulitkan di dalam setiap mesej, dan tidak pernah dihantar ke pelayan dalam teks biasa. Jika anda memutuskan sambungan dan menyambung semula, anda mendapat alias baharu. Tiada cara untuk menempah, memilih, atau mengekalkan alias.
+
+Alias ialah label, bukan identiti yang disahkan. Sesiapa yang mengetahui rahsia kongsi boleh menyertai bilik dan boleh menetapkan alias mereka kepada apa sahaja, jadi anggaplah setiap orang dalam bilik sebagai seseorang yang mempunyai rahsia itu. Jika anda perlu pasti dengan siapa anda bercakap, sahkannya melalui saluran lain, contohnya dengan bersetuju tentang kata kod lebih awal. Kongsikan rahsia hanya dengan orang yang anda percayai.`,
   faq_14_title: "Adakah had peserta?",
-  faq_14_body: `Setiap bilik menyokong sehingga 50 sambungan serentak. Jika bilik penuh, anda akan melihat mesej "Bilik penuh". Had ini wujud untuk mengekalkan bilik yang intim dan untuk mencegah penyalahgunaan.`,
+  faq_14_body: `Setiap bilik menyokong sehingga 50 sambungan serentak. Jika bilik penuh, anda akan melihat mesej "Bilik penuh". Pelayan secara keseluruhan juga mempunyai had bilangan sambungan yang diterimanya pada satu masa. Had-had ini wujud untuk mengekalkan bilik yang intim dan untuk mencegah penyalahgunaan.`,
   faq_15_title: "Adakah pengehadan kadar?",
-  faq_15_body: `Ya. Setiap sambungan dihadkan kepada 1 mesej sesaat. Ini menghalang spam dan penyalahgunaan tanpa memerlukan sebarang pengesahan identiti. Jika anda menghantar mesej terlalu cepat, anda akan melihat notis ringkas "Perlahan".`,
+  faq_15_body: `Ya. Setiap sambungan dihadkan kepada 1 mesej sesaat. Setiap bilik juga mempunyai had banjir (flood limit) bagi jumlah mesej yang boleh dihantar dalam tempoh yang singkat. Ini menghalang spam dan penyalahgunaan tanpa memerlukan sebarang pengesahan identiti. Jika anda menghantar mesej terlalu cepat, anda akan melihat notis ringkas "Perlahan".
+
+Sambungan baharu juga dihadkan. Di clearnet, proksi songsang di hadapan pelayan mengehadkan bilangan sambungan yang boleh dibuka oleh setiap alamat rangkaian. Perkhidmatan Tor dilindungi oleh pertahanan proof-of-work Tor untuk perkhidmatan onion, yang menjadikan usaha membanjiri perkhidmatan itu dengan sambungan mahal. Kedua-duanya tidak memerlukan aplikasi nullchat menerima atau menyimpan alamat IP anda.`,
   faq_16_title: "Bolehkah saya mengakses nullchat melalui Tor?",
   faq_16_body_1: `nullchat tersedia sebagai perkhidmatan tersembunyi Tor untuk pengguna di kawasan yang ditapis atau sesiapa yang mahukan lapisan kerahsiaan tambahan. Buka Tor Browser dan navigasi ke:`,
   faq_16_body_2: `Secara lalai, kedua-dua versi clearnet dan Tor menyambung ke bahagian belakang yang sama — pengguna di mana-mana satu boleh berkomunikasi antara satu sama lain dalam bilik yang sama menggunakan rahsia kongsi yang sama. Perkhidmatan .onion melalui rangkaian Tor tanpa Cloudflare, tiada CDN, dan tiada infrastruktur pihak ketiga antara anda dan pelayan. Tor menghalakan sambungan anda melalui pelbagai geganti yang disulitkan, jadi pelayan mahupun pemerhati tidak dapat menentukan alamat IP sebenar atau lokasi anda. Perkhidmatan .onion menggunakan HTTP biasa, yang dijangka dan selamat — Tor sendiri menyediakan penyulitan hujung-ke-hujung antara pelayar anda dan pelayan. Semua penyulitan peringkat aplikasi yang sama (NaCl secretbox, terbitan kunci Argon2id) digunakan di atasnya. Nota: Tor Browser mesti ditetapkan ke tahap keselamatan "Standard" untuk nullchat berfungsi, kerana aplikasi memerlukan JavaScript.`,
@@ -88,11 +95,13 @@ Kedua-dua pihak mesti bersetuju untuk mengaktifkan togol — ia berfungsi dengan
   faq_18_title: "Apa itu tamat masa tidak aktif?",
   faq_18_body: `Jika anda tidak aktif selama 15 minit — tiada menaip, tiada mengetuk, tiada menatal — nullchat akan memutuskan sambungan anda secara automatik dan mengembalikan anda ke skrin masuk kata laluan. Amaran muncul pada minit ke-13 memberi anda pilihan untuk kekal. Ini melindungi sesi anda jika anda meninggalkan peranti anda, menghalang mesej daripada terbakar semasa tiada siapa yang membaca secara aktif, dan memastikan sembang tidak dibiarkan kelihatan pada skrin yang tidak dijaga.`,
   faq_19_title: "Bagaimana dengan alamat IP?",
-  faq_19_body: `Di clearnet (nullchat.org), aplikasi dihoskan di rangkaian tepi Cloudflare. Alamat IP anda dikendalikan di lapisan infrastruktur dan tidak pernah dibaca, direkod, atau disimpan oleh kod aplikasi. Kod pelayan tidak mengakses pengepala IP. Kami tidak mempunyai mekanisme untuk mengenal pasti anda melalui alamat rangkaian.
+  faq_19_body: `Di clearnet (nullchat.org), halaman web disediakan oleh Vercel, dan sambungan sembang pergi ke pelayan kami di ws.nullchat.org melalui proksi songsang nginx. Seperti mana-mana laman web, hos halaman dan proksi songsang semestinya melihat alamat IP yang anda gunakan untuk menyambung pada saat anda menyambung. nginx tidak menghantar alamat anda kepada aplikasi nullchat dan tidak merekodkannya, jadi aplikasi tidak pernah menerima atau menyimpan alamat IP klien. Jika anda tidak mahu hos halaman atau pelayan kami melihat alamat IP anda, gunakan Tor.
 
 Di perkhidmatan tersembunyi Tor (.onion), alamat IP anda tidak pernah kelihatan kepada pelayan sama sekali — penghalaan onion Tor memastikan kerahsiaan peringkat rangkaian yang lengkap. Pelayan hanya melihat sambungan dari rangkaian Tor, tanpa cara untuk mengesannya kembali kepada anda.`,
   faq_20_title: "Adakah sebarang kuki atau penjejak?",
-  faq_20_body: `Tidak. nullchat tidak menetapkan kuki, tidak menggunakan analitik, tidak memuatkan skrip pihak ketiga, tidak membenamkan piksel penjejakan, dan tidak membuat permintaan luaran. Pengepala Content Security Policy menguatkuasakan ini di peringkat pelayar. Anda boleh mengesahkan ini dalam alat pembangun pelayar anda.`,
+  faq_20_body: `Tidak. nullchat tidak menetapkan kuki, tidak menggunakan analitik, tidak memuatkan skrip pihak ketiga, tidak membenamkan piksel penjejakan, dan tidak membuat permintaan luaran. Pengepala Content Security Policy menguatkuasakan ini di peringkat pelayar. Anda boleh mengesahkan ini dalam alat pembangun pelayar anda.
+
+Pilihan bahasa anda disimpan dalam sessionStorage untuk tab semasa sahaja, dan dipadamkan apabila anda menutup tab itu.`,
   faq_21_title: "Mengapa saya tidak boleh menghantar pautan, imej, atau fail?",
   faq_21_body: `Secara reka bentuk. nullchat hanya teks — tiada pautan, imej, lampiran fail, atau media apa-apa jenis boleh dihantar atau dipaparkan. Ini adalah keputusan keselamatan yang disengajakan, bukan kekangan. Pautan boleh klik dan media terbenam adalah permukaan serangan utama untuk eksploitasi sifar hari yang digunakan oleh perisian pengintip komersial seperti Pegasus, Predator, dan alat pengawasan yang serupa. Satu pautan atau fail berniat jahat boleh menjejaskan seluruh peranti secara senyap. Dengan melucutkan sembang kepada teks biasa sahaja, nullchat menghapuskan vektor serangan ini sepenuhnya. Tiada apa untuk diklik, tiada apa untuk dimuat turun, dan tiada apa untuk dipaparkan — yang bermakna tiada apa untuk dieksploitasi.`,
   faq_22_title: "Bolehkah saya menyalin atau menangkap skrin mesej?",
@@ -100,7 +109,7 @@ Di perkhidmatan tersembunyi Tor (.onion), alamat IP anda tidak pernah kelihatan 
 
 Ini adalah perlindungan berasaskan geseran, bukan jaminan mutlak. Pengguna yang bertekad sentiasa boleh mengambil gambar skrin mereka dengan peranti lain atau menggunakan alat peringkat OS yang memintas sekatan pelayar. Matlamatnya adalah menjadikan tangkapan kasual sukar dan mengukuhkan jangkaan bahawa perbualan dalam nullchat tidak dimaksudkan untuk disimpan.`,
   faq_23_title: "Apa itu trafik umpan?",
-  faq_23_body: `nullchat menghantar mesej tiruan yang disulitkan secara automatik pada selang rawak (setiap 10–60 saat) semasa anda disambungkan ke bilik. Mesej umpan ini tidak boleh dibezakan daripada mesej sebenar — saiznya sama (terima kasih kepada padding tetap), disulitkan dengan kunci yang sama, dan disampaikan melalui laluan pelayan yang sama. Klien penerima membuangnya secara senyap selepas penyahsulitan.
+  faq_23_body: `nullchat menghantar mesej tiruan yang disulitkan secara automatik pada selang rawak (setiap 10–60 saat) semasa anda disambungkan ke bilik. Mesej umpan ini tidak boleh dibezakan daripada mesej sebenar — saiznya sama (terima kasih kepada padding tetap), disulitkan dengan kunci yang sama, disampaikan melalui laluan pelayan yang sama, dan menghasilkan urutan bingkai yang sama antara pelayar anda dan pelayan seperti mesej sebenar. Klien penerima membuangnya secara senyap selepas penyahsulitan.
 
 Trafik umpan mengalahkan analisis trafik. Tanpanya, pemerhati yang memantau trafik rangkaian boleh menentukan bila komunikasi sebenar berlaku berdasarkan bila gumpalan yang disulitkan dihantar. Dengan umpan, terdapat aliran berterusan trafik yang kelihatan sama tanpa mengira sama ada sesiapa sebenarnya sedang menaip — menjadikannya mustahil untuk membezakan mesej sebenar daripada hingar.`,
   faq_24_title: "Apa itu padding sambungan?",

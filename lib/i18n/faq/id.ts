@@ -4,7 +4,7 @@ export const id: Record<FaqKey, string> = {
   faq_1_title: "Apa itu nullchat?",
   faq_1_body: `nullchat adalah ruang obrolan terenkripsi ujung-ke-ujung yang anonim, tidak memerlukan akun, email, nomor telepon, maupun informasi pribadi dalam bentuk apa pun. Anda memasukkan rahasia bersama — sebuah kata sandi — dan siapa pun yang memasukkan kata sandi yang sama akan masuk ke ruangan yang sama. Sesederhana itu.`,
   faq_2_title: "Bagaimana cara bergabung ke ruangan?",
-  faq_2_body: `Anda dan orang yang ingin Anda ajak bicara menyepakati rahasia bersama terlebih dahulu — secara langsung, melalui telepon, atau cara apa pun yang Anda inginkan. Anda berdua mengetikkan rahasia tersebut ke nullchat dan Anda berada di ruangan terenkripsi yang sama. Tidak ada daftar ruangan, tidak ada direktori, tidak ada cara untuk menelusuri. Jika Anda tidak tahu rahasianya, ruangan itu tidak ada bagi Anda.`,
+  faq_2_body: `Anda dan orang yang ingin Anda ajak bicara menyepakati rahasia bersama terlebih dahulu — secara langsung, melalui telepon, atau cara apa pun yang Anda inginkan. Anda berdua mengetikkan rahasia tersebut ke nullchat dan Anda berada di ruangan terenkripsi yang sama. Tidak ada daftar ruangan, tidak ada direktori, tidak ada cara untuk menelusuri. Untuk masuk, browser Anda harus membuktikan kepada server bahwa ia mengetahui rahasianya, jadi mengetahui pengenal ruangan saja tidak cukup. Jika Anda tidak tahu rahasianya, ruangan itu tidak ada bagi Anda.`,
   faq_3_title: "Bagaimana cara memilih rahasia bersama?",
   faq_3_body: `Rahasia bersama Anda adalah bagian terpenting dari keamanan Anda. Rahasia ini adalah kunci ke ruangan Anda sekaligus kunci enkripsi Anda — jika seseorang menebaknya, mereka bisa membaca semuanya. Perlakukan seperti kata sandi brankas.
 
@@ -14,16 +14,19 @@ Bagikan rahasia Anda melalui saluran aman di luar jaringan — secara langsung a
 
 Indikator kekuatan di layar masuk memberi Anda gambaran kasar seberapa tahan rahasia Anda terhadap serangan brute-force, tetapi tidak ada indikator yang bisa menggantikan penilaian yang baik. Jika ragu, buat lebih panjang dan lebih acak.`,
   faq_4_title: "Bagaimana cara kerja enkripsi?",
-  faq_4_body: `Saat Anda memasukkan rahasia bersama, dua hal terjadi sepenuhnya di browser Anda:
+  faq_4_body: `Saat Anda memasukkan rahasia bersama, browser Anda memprosesnya melalui Argon2id — fungsi derivasi kunci yang membutuhkan memori besar — dalam dua derivasi terpisah. Masing-masing memiliki salt sendiri dan menggunakan memori 16 MiB serta 3 iterasi. Semua ini terjadi di perangkat Anda.
 
-1. Rahasia diproses melalui Argon2id — fungsi derivasi kunci yang membutuhkan memori besar — menggunakan salt terpisah domain untuk menghasilkan room ID. Hash ini dikirim ke server agar server tahu ruangan mana yang harus menghubungkan Anda. Server tidak pernah melihat rahasia Anda yang sebenarnya.
+1. Derivasi pertama menghasilkan room ID. Room ID dikirim ke server agar server tahu ke ruangan mana Anda harus dihubungkan. Server tidak pernah melihat rahasia Anda yang sebenarnya.
 
-2. Rahasia dijalankan melalui derivasi Argon2id kedua yang independen (memori 16 MiB, 3 iterasi) untuk menghasilkan kunci enkripsi 256-bit. Kunci ini tidak pernah meninggalkan browser Anda. Argon2id memerlukan blok RAM besar per tebakan, membuat serangan brute-force GPU dan ASIC terhadap kata sandi Anda jauh lebih sulit dibandingkan KDF tradisional.
+2. Derivasi kedua menghasilkan 64 byte dalam satu kali proses, yang dibagi menjadi dua: kunci enkripsi 256-bit dan rahasia akses ruangan. Kunci enkripsi tidak pernah meninggalkan browser Anda. Rahasia akses ruangan adalah cara browser Anda membuktikan kepada server bahwa Anda mengetahui rahasia bersama, itulah sebabnya mengetahui room ID saja tidak cukup untuk bergabung ke ruangan.
 
-Setiap pesan yang Anda kirim dienkripsi dengan NaCl secretbox (XSalsa20-Poly1305) menggunakan kunci tersebut sebelum meninggalkan perangkat Anda. Server menerima, menyimpan, dan meneruskan hanya ciphertext — gumpalan terenkripsi yang tidak bermakna tanpa kunci. Kami tidak bisa membaca pesan Anda. Tidak ada yang bisa, kecuali mereka mengetahui rahasia bersama.`,
+Karena Argon2id memerlukan blok RAM besar untuk setiap tebakan, menebak kata sandi Anda secara brute-force dengan GPU dan ASIC menjadi jauh lebih sulit dibandingkan dengan fungsi derivasi kunci yang lebih lama.
+
+Setiap pesan dienkripsi dengan NaCl secretbox (XSalsa20-Poly1305) menggunakan kunci enkripsi sebelum meninggalkan perangkat Anda. Server hanya menerima, menyimpan, dan meneruskan ciphertext, yang tidak bermakna tanpa kunci. Kami tidak bisa membaca pesan Anda, dan tidak ada yang bisa kecuali mereka mengetahui rahasia bersama.`,
   faq_5_title: "Apa yang dilihat server?",
   faq_5_body: `Server melihat:
 • Hash turunan Argon2id (room ID) — bukan kata sandi Anda
+• Nilai yang diturunkan dari rahasia bersama Anda dengan Argon2id yang membuktikan bahwa Anda mengetahuinya. Server hanya menyimpan hash dari nilai tersebut, dan nilai itu tidak mengungkapkan rahasia maupun kunci enkripsi.
 • Gumpalan ciphertext terenkripsi — bukan pesan Anda
 • Jumlah koneksi aktif di ruangan
 • Stempel waktu saat gumpalan terenkripsi diterima
@@ -32,9 +35,9 @@ Server TIDAK melihat:
 • Rahasia bersama / kata sandi Anda
 • Isi pesan Anda
 • Identitas atau nama pengguna Anda (alias dienkripsi di dalam pesan)
-• Alamat IP Anda (dihapus di edge oleh penyedia hosting kami)`,
+• Alamat IP Anda (aplikasi nullchat tidak pernah menerimanya; lihat "Bagaimana dengan alamat IP?" di bawah)`,
   faq_6_title: "Apa itu padding pesan?",
-  faq_6_body: `Sebelum enkripsi, setiap pesan di-padding ke blok tetap 8.192 byte menggunakan prefiks panjang 2 byte diikuti konten pesan dan noise acak. Ini berarti pesan pendek seperti "hi" menghasilkan ciphertext berukuran persis sama dengan pesan sepanjang maksimum. Tanpa padding, pengamat bisa menebak isi pesan berdasarkan panjang ciphertext. Pengisian noise acak (bukan nol) memastikan tidak ada pola yang bisa dibedakan dalam plaintext sebelum enkripsi. Padding menghilangkan saluran samping ini sepenuhnya.`,
+  faq_6_body: `Sebelum enkripsi, setiap pesan di-padding ke blok tetap 16.384 byte menggunakan prefiks panjang 2 byte diikuti konten pesan dan noise acak. Ini berarti pesan pendek seperti "hi" menghasilkan ciphertext berukuran persis sama dengan pesan sepanjang maksimum. Tanpa padding, pengamat bisa menebak isi pesan berdasarkan panjang ciphertext. Pengisian noise acak (bukan nol) memastikan tidak ada pola yang bisa dibedakan dalam plaintext sebelum enkripsi. Padding menghilangkan saluran samping ini sepenuhnya.`,
   faq_7_title: "Apa itu pengaburan stempel waktu?",
   faq_7_body: `Stempel waktu yang disertakan dalam pesan dibulatkan ke menit terdekat sebelum enkripsi. Ini mencegah serangan korelasi waktu di mana pengamat bisa mencocokkan pola pesan di berbagai saluran dengan membandingkan stempel waktu yang tepat.`,
   faq_8_title: "Berapa lama pesan bertahan?",
@@ -58,17 +61,21 @@ Anda memasukkan rahasia bersama, meninggalkan pesan terenkripsi, dan memutuskan 
 
 Pengirim bisa terhubung kembali dengan aman kapan saja untuk memeriksa apakah pesan mereka masih menunggu — tanpa memicu hitungan mundur apa pun, selama mereka satu-satunya orang di ruangan. Tidak ada pihak yang perlu online pada waktu yang sama. Tidak ada pihak yang memerlukan akun. Tidak ada pihak yang bisa diidentifikasi. Server tidak pernah tahu siapa yang meninggalkan pesan atau siapa yang mengambilnya — hanya bahwa gumpalan terenkripsi disimpan dan kemudian diambil. Setelah penghapusan, tidak ada bukti bahwa pertukaran pernah terjadi.`,
   faq_10_title: "Berapa lama ruangan bertahan?",
-  faq_10_body: `Ruangan ada selama memiliki koneksi aktif atau pesan yang belum kedaluwarsa. Setelah orang terakhir memutuskan koneksi dan semua pesan telah kedaluwarsa atau terhapus, ruangan hilang. Tidak ada status ruangan yang persisten. Jika tidak ada pesan yang pernah dikirim, ruangan hanyalah koneksi langsung — tidak ada yang tersimpan, dan ruangan menghilang begitu semua orang pergi.`,
+  faq_10_body: `Ruangan ada selama memiliki koneksi aktif atau pesan yang belum kedaluwarsa. Setelah orang terakhir memutuskan koneksi dan semua pesan telah kedaluwarsa atau terhapus, ruangan hilang. Tidak ada yang tersisa darinya. Jika tidak ada pesan yang pernah dikirim, ruangan hanyalah koneksi langsung — tidak ada yang tersimpan, dan ruangan menghilang begitu semua orang pergi.`,
   faq_11_title: "Apa itu tombol Akhiri?",
   faq_11_body: `Akhiri langsung menghapus setiap pesan yang Anda kirim selama sesi saat ini dari server untuk semua orang di ruangan. Peserta lain akan melihat pesan Anda menghilang dari layar mereka secara real-time. Anda kemudian diputuskan dari ruangan. Gunakan ini jika Anda perlu pergi tanpa meninggalkan jejak.`,
   faq_12_title: "Apa itu tombol Keluar?",
   faq_12_body: `Keluar hanya memutuskan koneksi Anda dari ruangan. Pesan Anda tetap ada di server — pesan yang belum dibaca terus menunggu (hingga 24 jam), dan pesan yang sudah dibaca melanjutkan hitungan mundur 5 menit mereka. Jika Anda bergabung kembali ke ruangan nanti, Anda akan mendapatkan alias acak baru — tidak ada cara untuk menghubungkan identitas lama dan baru Anda.`,
   faq_13_title: "Apa itu alias acak?",
-  faq_13_body: `Saat Anda memasuki ruangan, Anda diberi kode hex 8 karakter acak (seperti "a9f2b71c") sebagai alias Anda. Alias ini dibuat di browser Anda, dienkripsi di dalam setiap pesan, dan tidak pernah dikirim ke server dalam bentuk plaintext. Jika Anda memutuskan koneksi dan terhubung kembali, Anda mendapatkan alias baru. Tidak ada cara untuk memesan, memilih, atau mempertahankan alias.`,
+  faq_13_body: `Saat Anda memasuki ruangan, Anda diberi kode hex 8 karakter acak (seperti "a9f2b71c") sebagai alias Anda. Alias ini dibuat di browser Anda, dienkripsi di dalam setiap pesan, dan tidak pernah dikirim ke server dalam bentuk plaintext. Jika Anda memutuskan koneksi dan terhubung kembali, Anda mendapatkan alias baru. Tidak ada cara untuk memesan, memilih, atau mempertahankan alias.
+
+Alias hanyalah label, bukan identitas yang terverifikasi. Siapa pun yang mengetahui rahasia bersama dapat bergabung ke ruangan dan dapat mengatur aliasnya menjadi apa saja, jadi anggaplah setiap orang di ruangan sebagai seseorang yang memiliki rahasia tersebut. Jika Anda perlu memastikan dengan siapa Anda berbicara, konfirmasikan melalui saluran lain, misalnya dengan menyepakati kata kode sebelumnya. Hanya bagikan rahasia kepada orang yang Anda percayai.`,
   faq_14_title: "Apakah ada batas peserta?",
-  faq_14_body: `Setiap ruangan mendukung hingga 50 koneksi bersamaan. Jika ruangan penuh, Anda akan melihat pesan "Ruangan penuh". Batas ini ada untuk menjaga ruangan tetap intim dan mencegah penyalahgunaan.`,
+  faq_14_body: `Setiap ruangan mendukung hingga 50 koneksi bersamaan. Jika ruangan penuh, Anda akan melihat pesan "Ruangan penuh". Server secara keseluruhan juga memiliki batas jumlah koneksi yang diterimanya secara bersamaan. Batas-batas ini ada untuk menjaga ruangan tetap intim dan mencegah penyalahgunaan.`,
   faq_15_title: "Apakah ada pembatasan kecepatan?",
-  faq_15_body: `Ya. Setiap koneksi dibatasi 1 pesan per detik. Ini mencegah spam dan penyalahgunaan tanpa memerlukan verifikasi identitas apa pun. Jika Anda mengirim pesan terlalu cepat, Anda akan melihat pemberitahuan singkat "Pelan-pelan".`,
+  faq_15_body: `Ya. Setiap koneksi dibatasi 1 pesan per detik. Setiap ruangan juga memiliki batas banjir pesan (flood limit) untuk jumlah total pesan yang dapat dikirim dalam waktu singkat. Ini mencegah spam dan penyalahgunaan tanpa memerlukan verifikasi identitas apa pun. Jika Anda mengirim pesan terlalu cepat, Anda akan melihat pemberitahuan singkat "Pelan-pelan".
+
+Koneksi baru juga dibatasi. Di clearnet, reverse proxy di depan server membatasi jumlah koneksi yang dapat dibuka oleh setiap alamat jaringan. Layanan Tor dilindungi oleh pertahanan proof-of-work milik Tor untuk layanan onion, yang membuat upaya membanjiri layanan dengan koneksi menjadi mahal. Tidak satu pun dari keduanya mengharuskan aplikasi nullchat menerima atau menyimpan alamat IP Anda.`,
   faq_16_title: "Bisakah saya mengakses nullchat melalui Tor?",
   faq_16_body_1: `nullchat tersedia sebagai Tor hidden service untuk pengguna di wilayah yang disensor atau siapa pun yang menginginkan lapisan anonimitas tambahan. Buka Tor Browser dan navigasikan ke:`,
   faq_16_body_2: `Secara default, baik versi clearnet maupun Tor terhubung ke backend yang sama — pengguna dari kedua sisi bisa berkomunikasi satu sama lain di ruangan yang sama menggunakan rahasia bersama yang sama. Layanan .onion merutekan melalui jaringan Tor tanpa Cloudflare, tanpa CDN, dan tanpa infrastruktur pihak ketiga antara Anda dan server. Tor merutekan koneksi Anda melalui beberapa relay terenkripsi, sehingga baik server maupun pengamat mana pun tidak bisa menentukan alamat IP asli atau lokasi Anda. Layanan .onion menggunakan HTTP biasa, yang memang diharapkan dan aman — Tor sendiri menyediakan enkripsi ujung-ke-ujung antara browser dan server Anda. Semua enkripsi tingkat aplikasi yang sama (NaCl secretbox, derivasi kunci Argon2id) berlaku di atasnya. Catatan: Tor Browser harus diatur ke tingkat keamanan "Standard" agar nullchat berfungsi, karena aplikasi memerlukan JavaScript.`,
@@ -88,11 +95,13 @@ Kedua pihak harus setuju untuk mengaktifkan toggle — cara kerjanya sama sepert
   faq_18_title: "Apa itu batas waktu tidak aktif?",
   faq_18_body: `Jika Anda tidak aktif selama 15 menit — tidak mengetik, tidak mengetuk, tidak menggulir — nullchat akan otomatis memutuskan koneksi Anda dan mengembalikan Anda ke layar masuk kata sandi. Peringatan muncul pada menit ke-13 memberi Anda opsi untuk tetap tinggal. Ini melindungi sesi Anda jika Anda meninggalkan perangkat, mencegah pesan terhapus saat tidak ada yang aktif membaca, dan memastikan obrolan tidak dibiarkan terlihat di layar yang tidak dijaga.`,
   faq_19_title: "Bagaimana dengan alamat IP?",
-  faq_19_body: `Di clearnet (nullchat.org), aplikasi di-hosting di jaringan edge Cloudflare. Alamat IP Anda ditangani di lapisan infrastruktur dan tidak pernah dibaca, dicatat, atau disimpan oleh kode aplikasi. Kode server tidak mengakses header IP. Kami tidak memiliki mekanisme untuk mengidentifikasi Anda berdasarkan alamat jaringan.
+  faq_19_body: `Di clearnet (nullchat.org), halaman web disajikan oleh Vercel, dan koneksi obrolan menuju server kami di ws.nullchat.org melalui reverse proxy nginx. Seperti situs web mana pun, host halaman dan reverse proxy pasti melihat alamat IP yang Anda gunakan untuk terhubung pada saat Anda terhubung. nginx tidak meneruskan alamat Anda ke aplikasi nullchat dan tidak mencatatnya, sehingga aplikasi tidak pernah menerima atau menyimpan alamat IP klien. Jika Anda tidak ingin host halaman atau server kami melihat alamat IP Anda, gunakan Tor.
 
 Di Tor hidden service (.onion), alamat IP Anda tidak pernah terlihat oleh server sama sekali — routing onion Tor memastikan anonimitas tingkat jaringan yang lengkap. Server hanya melihat koneksi dari jaringan Tor, tanpa cara untuk melacaknya kembali ke Anda.`,
   faq_20_title: "Apakah ada cookie atau pelacak?",
-  faq_20_body: `Tidak. nullchat tidak memasang cookie, tidak menggunakan analitik, tidak memuat skrip pihak ketiga, tidak menyematkan piksel pelacakan, dan tidak membuat permintaan eksternal. Header Content Security Policy memberlakukan ini di tingkat browser. Anda bisa memverifikasi ini di alat pengembang browser Anda.`,
+  faq_20_body: `Tidak. nullchat tidak memasang cookie, tidak menggunakan analitik, tidak memuat skrip pihak ketiga, tidak menyematkan piksel pelacakan, dan tidak membuat permintaan eksternal. Header Content Security Policy memberlakukan ini di tingkat browser. Anda bisa memverifikasi ini di alat pengembang browser Anda.
+
+Pilihan bahasa Anda disimpan di sessionStorage hanya untuk tab saat ini, dan dihapus saat Anda menutup tab.`,
   faq_21_title: "Mengapa saya tidak bisa mengirim tautan, gambar, atau file?",
   faq_21_body: `Memang dirancang begitu. nullchat hanya teks — tidak ada tautan, gambar, lampiran file, atau media dalam bentuk apa pun yang bisa dikirim atau ditampilkan. Ini adalah keputusan keamanan yang disengaja, bukan keterbatasan. Tautan yang bisa diklik dan media tertanam adalah permukaan serangan utama untuk eksploitasi zero-day yang digunakan oleh spyware komersial seperti Pegasus, Predator, dan alat pengawasan serupa. Satu tautan atau file berbahaya bisa secara diam-diam mengkompromikan seluruh perangkat. Dengan mengurangi obrolan menjadi plaintext saja, nullchat menghilangkan vektor serangan ini sepenuhnya. Tidak ada yang bisa diklik, tidak ada yang bisa diunduh, dan tidak ada yang bisa ditampilkan — yang berarti tidak ada yang bisa dieksploitasi.`,
   faq_22_title: "Bisakah saya menyalin atau mengambil tangkapan layar pesan?",
@@ -100,7 +109,7 @@ Di Tor hidden service (.onion), alamat IP Anda tidak pernah terlihat oleh server
 
 Ini adalah perlindungan berbasis gesekan, bukan jaminan absolut. Pengguna yang bertekad selalu bisa memotret layar mereka dengan perangkat lain atau menggunakan alat tingkat OS yang melewati pembatasan browser. Tujuannya adalah membuat pengambilan kasual menjadi sulit dan memperkuat ekspektasi bahwa percakapan di nullchat tidak dimaksudkan untuk disimpan.`,
   faq_23_title: "Apa itu lalu lintas umpan?",
-  faq_23_body: `nullchat secara otomatis mengirim pesan dummy terenkripsi pada interval acak (setiap 10–60 detik) selama Anda terhubung ke ruangan. Pesan umpan ini tidak bisa dibedakan dari pesan asli — ukurannya sama (berkat padding tetap), dienkripsi dengan kunci yang sama, dan diteruskan melalui jalur server yang sama. Klien penerima secara diam-diam membuangnya setelah dekripsi.
+  faq_23_body: `nullchat secara otomatis mengirim pesan dummy terenkripsi pada interval acak (setiap 10–60 detik) selama Anda terhubung ke ruangan. Pesan umpan ini tidak bisa dibedakan dari pesan asli — ukurannya sama (berkat padding tetap), dienkripsi dengan kunci yang sama, diteruskan melalui jalur server yang sama, dan menghasilkan urutan frame yang sama antara browser Anda dan server seperti pesan asli. Klien penerima secara diam-diam membuangnya setelah dekripsi.
 
 Lalu lintas umpan mengalahkan analisis lalu lintas. Tanpanya, pengamat yang memantau lalu lintas jaringan bisa menentukan kapan komunikasi nyata terjadi berdasarkan kapan gumpalan terenkripsi dikirim. Dengan umpan, ada aliran lalu lintas yang tampak identik secara konstan terlepas dari apakah ada yang benar-benar mengetik — membuat mustahil untuk membedakan pesan asli dari noise.`,
   faq_24_title: "Apa itu padding koneksi?",

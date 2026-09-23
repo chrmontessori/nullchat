@@ -4,7 +4,7 @@ export const sw: Record<FaqKey, string> = {
   faq_1_title: "nullchat ni nini?",
   faq_1_body: `nullchat ni chumba cha mazungumzo kisichojulikana, kilichosimbwa fiche kutoka mwanzo hadi mwisho ambacho hakihitaji akaunti, barua pepe, nambari za simu, wala taarifa yoyote ya kibinafsi. Unaingiza siri iliyoshirikiwa — nenosiri — na mtu yeyote mwingine anayeingiza nenosiri hilohilo anaingia chumba kilekile. Ndiyo tu.`,
   faq_2_title: "Ninajiunga vipi na chumba?",
-  faq_2_body: `Wewe na mtu unayetaka kuzungumza naye mnakubaliana kuhusu siri iliyoshirikiwa mapema — ana kwa ana, kupitia simu, jinsi yoyote mtakavyo. Wote wawili mnaandika siri hiyo kwenye nullchat na mnakuwa katika chumba kilekile kilichosimbwa fiche. Hakuna orodha ya vyumba, hakuna saraka, hakuna njia ya kutafuta. Ikiwa hujui siri hiyo, chumba hakipo kwako.`,
+  faq_2_body: `Wewe na mtu unayetaka kuzungumza naye mnakubaliana kuhusu siri iliyoshirikiwa mapema — ana kwa ana, kupitia simu, jinsi yoyote mtakavyo. Wote wawili mnaandika siri hiyo kwenye nullchat na mnakuwa katika chumba kilekile kilichosimbwa fiche. Hakuna orodha ya vyumba, hakuna saraka, hakuna njia ya kutafuta. Ili kuingia, kivinjari chako kinapaswa kuithibitishia seva kwamba kinaijua siri, kwa hiyo kujua kitambulisho cha chumba pekee hakutoshi. Ikiwa hujui siri hiyo, chumba hakipo kwako.`,
   faq_3_title: "Nichague vipi siri iliyoshirikiwa?",
   faq_3_body: `Siri yako iliyoshirikiwa ndiyo kipengele muhimu zaidi cha usalama wako. Ni ufunguo wa chumba chako na pia ufunguo wa usimbaji fiche wako — ikiwa mtu ataigundua, anaweza kusoma kila kitu. Ichukulie kama nenosiri la kasiki.
 
@@ -14,16 +14,19 @@ Shiriki siri yako kupitia njia salama nje ya mtandao — ana kwa ana ndiyo bora 
 
 Kiashiria cha nguvu kwenye skrini ya kuingia kinakupa makadirio ya jinsi siri yako inavyostahimili mashambulizi ya nguvu, lakini hakuna kiashiria kinachoweza kuchukua nafasi ya uamuzi mzuri. Ukiwa na shaka, ifanye ndefu zaidi na isiyo na mpangilio zaidi.`,
   faq_4_title: "Usimbaji fiche unafanya kazi vipi?",
-  faq_4_body: `Unapoingiza siri yako iliyoshirikiwa, mambo mawili hutokea ndani ya kivinjari chako:
+  faq_4_body: `Unapoingiza siri yako iliyoshirikiwa, kivinjari chako kinaipitisha kupitia Argon2id — kazi ya kupata ufunguo inayohitaji kumbukumbu kubwa — katika michakato miwili tofauti ya kupata ufunguo. Kila mchakato una chumvi yake na hutumia kumbukumbu ya 16 MiB na marudio 3. Yote haya hufanyika kwenye kifaa chako.
 
-1. Siri inasindikwa kupitia Argon2id — kazi ya kupata ufunguo inayohitaji kumbukumbu kubwa — ikitumia chumvi iliyotengwa kwa kikoa ili kutoa kitambulisho cha chumba. Hashi hii inatumwa kwa seva ili ijue chumba kipi cha kukuunganisha. Seva haioni siri yako halisi kamwe.
+1. Mchakato wa kwanza unatoa kitambulisho cha chumba. Kinatumwa kwa seva ili seva ijue chumba kipi cha kukuunganisha. Seva haioni siri yako halisi kamwe.
 
-2. Siri inaendeshwa kupitia uondoaji wa pili, huru wa Argon2id (kumbukumbu ya 16 MiB, marudio 3) kutoa ufunguo wa usimbaji fiche wa biti 256. Ufunguo huu hauondoki kwenye kivinjari chako kamwe. Argon2id inahitaji vitalu vikubwa vya RAM kwa kila jaribio la kukisia, na kufanya mashambulizi ya nguvu ya GPU na ASIC kwenye nenosiri lako kuwa magumu zaidi kuliko KDF za kitamaduni.
+2. Mchakato wa pili unatoa baiti 64 kwa mzunguko mmoja, ambazo zinagawanywa sehemu mbili: ufunguo wa usimbaji fiche wa biti 256 na siri ya kuingia chumbani. Ufunguo wa usimbaji fiche hauondoki kwenye kivinjari chako kamwe. Siri ya kuingia chumbani ndiyo njia ambayo kivinjari chako kinaithibitishia seva kwamba unaijua siri iliyoshirikiwa, na ndiyo sababu kujua kitambulisho cha chumba pekee hakutoshi kuingia chumbani.
 
-Kila ujumbe unaotuma unasimbwa fiche kwa NaCl secretbox (XSalsa20-Poly1305) ukitumia ufunguo huo kabla ya kuondoka kwenye kifaa chako. Seva inapokea, kuhifadhi, na kupeleka maandishi yaliyosimbwa fiche pekee — vipande visivyoeleweka bila ufunguo. Hatuwezi kusoma ujumbe wako. Hakuna mtu anayeweza, isipokuwa anajua siri iliyoshirikiwa.`,
+Argon2id inahitaji vitalu vikubwa vya RAM kwa kila jaribio la kukisia, na kufanya mashambulizi ya nguvu ya GPU na ASIC kwenye nenosiri lako kuwa magumu zaidi kuliko KDF za kitamaduni.
+
+Kila ujumbe unasimbwa fiche kwa NaCl secretbox (XSalsa20-Poly1305) ukitumia ufunguo wa usimbaji fiche kabla ya kuondoka kwenye kifaa chako. Seva inapokea, kuhifadhi, na kupeleka maandishi yaliyosimbwa fiche pekee — vipande visivyoeleweka bila ufunguo. Hatuwezi kusoma ujumbe wako. Hakuna mtu anayeweza, isipokuwa anajua siri iliyoshirikiwa.`,
   faq_5_title: "Seva inaona nini?",
   faq_5_body: `Seva inaona:
 • Hashi iliyotolewa na Argon2id (kitambulisho cha chumba) — si nenosiri lako
+• Thamani inayotokana na siri yako iliyoshirikiwa kupitia Argon2id inayothibitisha kwamba unaijua. Seva inahifadhi hashi yake tu, na thamani hiyo haifichui siri wala ufunguo wa usimbaji fiche.
 • Vipande vya maandishi yaliyosimbwa fiche — si ujumbe wako
 • Idadi ya miunganisho hai katika chumba
 • Muda wa vipande vilivyosimbwa fiche vilipopokewa
@@ -32,9 +35,9 @@ Seva HAIONI:
 • Siri yako iliyoshirikiwa / nenosiri
 • Maudhui ya ujumbe wako
 • Utambulisho wako au jina la mtumiaji (majina bandia yanasimbwa fiche ndani ya ujumbe)
-• Anwani yako ya IP (inaondolewa pembezoni na mtoa huduma wetu wa kupangisha)`,
+• Anwani yako ya IP (programu ya nullchat haiipokei kamwe; tazama "Vipi kuhusu anwani za IP?" hapa chini)`,
   faq_6_title: "Ujazaji wa ujumbe ni nini?",
-  faq_6_body: `Kabla ya usimbaji fiche, kila ujumbe unajazwa hadi kizuizi cha baiti 8,192 kisichobadilika kwa kutumia kiambishi cha urefu cha baiti 2 kikifuatiwa na maudhui ya ujumbe na kelele za nasibu. Hii inamaanisha ujumbe mfupi kama "hujambo" hutoa maandishi yaliyosimbwa fiche ya ukubwa sawa na ujumbe wa urefu wa juu. Bila ujazaji, mwangalizi angeweza kukisia maudhui ya ujumbe kulingana na urefu wa maandishi yaliyosimbwa fiche. Kujaza kwa kelele za nasibu (si sufuri) kunahakikisha hakuna muundo unaotambulika katika maandishi kabla ya usimbaji fiche. Ujazaji unaondoa njia hii ya upande kabisa.`,
+  faq_6_body: `Kabla ya usimbaji fiche, kila ujumbe unajazwa hadi kizuizi cha baiti 16,384 kisichobadilika kwa kutumia kiambishi cha urefu cha baiti 2 kikifuatiwa na maudhui ya ujumbe na kelele za nasibu. Hii inamaanisha ujumbe mfupi kama "hujambo" hutoa maandishi yaliyosimbwa fiche ya ukubwa sawa na ujumbe wa urefu wa juu. Bila ujazaji, mwangalizi angeweza kukisia maudhui ya ujumbe kulingana na urefu wa maandishi yaliyosimbwa fiche. Kujaza kwa kelele za nasibu (si sufuri) kunahakikisha hakuna muundo unaotambulika katika maandishi kabla ya usimbaji fiche. Ujazaji unaondoa njia hii ya upande kabisa.`,
   faq_7_title: "Uficho wa muda ni nini?",
   faq_7_body: `Muda uliojumuishwa katika ujumbe unakaribishwa hadi dakika ya karibu kabla ya usimbaji fiche. Hii inazuia mashambulizi ya uhusiano wa muda ambapo mwangalizi anaweza kulinganisha mifumo ya ujumbe katika njia tofauti kwa kulinganisha muda halisi.`,
   faq_8_title: "Ujumbe unadumu kwa muda gani?",
@@ -58,17 +61,21 @@ Unaingiza siri iliyoshirikiwa, unaacha ujumbe uliosimbwa fiche, na kukatisha muu
 
 Mtumaji anaweza kuunganisha tena salama wakati wowote kuangalia kama ujumbe wao bado unasubiri — bila kusababisha mhesabu wowote wa muda, maadamu yuko peke yake chumbani. Hakuna upande unaohitaji kuwa mtandaoni kwa wakati mmoja. Hakuna upande unaohitaji akaunti. Hakuna upande unaotambulika. Seva haijui kamwe ni nani aliyeacha ujumbe au ni nani aliyeupokea — inajua tu kwamba kipande kilichosimbwa fiche kilihifadhiwa na baadaye kuchukuliwa. Baada ya kuungua, hakuna ushahidi kwamba ubadilishanaji uliwahi kutokea.`,
   faq_10_title: "Vyumba vinadumu kwa muda gani?",
-  faq_10_body: `Chumba kipo maadamu kina miunganisho hai au ujumbe ambao haujamalizika muda wake. Mtu wa mwisho anapokatisha muunganisho na ujumbe wote umeisha muda wake au kuungua, chumba kinapotea. Hakuna hali ya chumba inayoendelea. Ikiwa hakuna ujumbe uliotumwa, chumba ni muunganisho wa moja kwa moja tu — hakuna kinachohifadhiwa, na kinapotea mara tu kila mtu anapoondoka.`,
+  faq_10_body: `Chumba kipo maadamu kina miunganisho hai au ujumbe ambao haujamalizika muda wake. Mtu wa mwisho anapokatisha muunganisho na ujumbe wote umeisha muda wake au kuungua, chumba kinapotea. Hakuna chochote kuhusu chumba hicho kinachohifadhiwa. Ikiwa hakuna ujumbe uliotumwa, chumba ni muunganisho wa moja kwa moja tu — hakuna kinachohifadhiwa, na kinapotea mara tu kila mtu anapoondoka.`,
   faq_11_title: "Kitufe cha Maliza ni nini?",
   faq_11_body: `Maliza inafuta mara moja kila ujumbe uliotuma wakati wa kikao chako cha sasa kutoka kwenye seva kwa kila mtu chumbani. Washiriki wengine wataona ujumbe wako ukitoweka kutoka kwenye skrini yao kwa wakati halisi. Kisha unakatishwa muunganisho kutoka kwenye chumba. Tumia hii ikiwa unahitaji kuondoka bila kuacha alama.`,
   faq_12_title: "Kitufe cha Ondoka ni nini?",
   faq_12_body: `Ondoka inakukatisha muunganisho tu kutoka kwenye chumba. Ujumbe wako unabaki kwenye seva — ujumbe usiosomwa unaendelea kusubiri (hadi saa 24), na ujumbe uliosomwa tayari unaendelea mhesabu wao wa kuungua wa dakika 5. Ukijiunga tena na chumba baadaye, utapata jina bandia jipya la nasibu — hakuna njia ya kuunganisha utambulisho wako wa zamani na mpya.`,
   faq_13_title: "Majina bandia ya nasibu ni nini?",
-  faq_13_body: `Unapoingia chumbani, unapewa msimbo wa hex wa herufi 8 za nasibu (kama "a9f2b71c") kama jina lako bandia. Jina hili bandia linazalishwa katika kivinjari chako, linasimbwa fiche ndani ya kila ujumbe, na halitumwi kamwe kwa seva kwa maandishi wazi. Ukikatisha muunganisho na kuunganisha tena, unapata jina bandia jipya. Hakuna njia ya kuhifadhi, kuchagua, au kudumisha jina bandia.`,
+  faq_13_body: `Unapoingia chumbani, unapewa msimbo wa hex wa herufi 8 za nasibu (kama "a9f2b71c") kama jina lako bandia. Jina hili bandia linazalishwa katika kivinjari chako, linasimbwa fiche ndani ya kila ujumbe, na halitumwi kamwe kwa seva kwa maandishi wazi. Ukikatisha muunganisho na kuunganisha tena, unapata jina bandia jipya. Hakuna njia ya kuhifadhi, kuchagua, au kudumisha jina bandia.
+
+Jina bandia ni lebo tu, si utambulisho uliothibitishwa. Mtu yeyote anayejua siri iliyoshirikiwa anaweza kujiunga na chumba na kujipa jina bandia lolote, kwa hiyo mchukulie kila mtu chumbani kama mtu mwenye siri hiyo. Ikiwa unahitaji kuwa na uhakika unazungumza na nani, thibitisha kupitia njia nyingine, kwa mfano kwa kukubaliana mapema kuhusu neno la ishara. Shiriki siri na watu unaowaamini tu.`,
   faq_14_title: "Kuna kikomo cha washiriki?",
-  faq_14_body: `Kila chumba kinasaidia hadi miunganisho 50 kwa wakati mmoja. Chumba kikiwa kimejaa, utaona ujumbe wa "Chumba kimejaa". Kikomo hiki kipo ili kuweka vyumba kuwa vya karibu na kuzuia matumizi mabaya.`,
+  faq_14_body: `Kila chumba kinasaidia hadi miunganisho 50 kwa wakati mmoja. Chumba kikiwa kimejaa, utaona ujumbe wa "Chumba kimejaa". Seva kwa ujumla pia ina kikomo cha idadi ya miunganisho inayokubali kwa wakati mmoja. Vikomo hivi vipo ili kuweka vyumba kuwa vya karibu na kuzuia matumizi mabaya.`,
   faq_15_title: "Kuna udhibiti wa kasi?",
-  faq_15_body: `Ndiyo. Kila muunganisho una kikomo cha ujumbe 1 kwa sekunde. Hii inazuia taka na matumizi mabaya bila kuhitaji uthibitishaji wowote wa utambulisho. Ukituma ujumbe haraka sana, utaona taarifa fupi ya "Pole pole".`,
+  faq_15_body: `Ndiyo. Kila muunganisho una kikomo cha ujumbe 1 kwa sekunde. Kila chumba pia kina kikomo cha mafuriko kinachodhibiti jumla ya ujumbe unaoweza kutumwa ndani ya muda mfupi. Hii inazuia taka na matumizi mabaya bila kuhitaji uthibitishaji wowote wa utambulisho. Ukituma ujumbe haraka sana, utaona taarifa fupi ya "Pole pole".
+
+Miunganisho mipya pia ina vikomo. Kwenye clearnet, proksi ya kinyume (reverse proxy) iliyo mbele ya seva inaweka kikomo cha idadi ya miunganisho ambayo kila anwani ya mtandao inaweza kufungua. Huduma ya Tor inalindwa na kinga za proof-of-work za Tor kwa huduma za onion, ambazo hufanya kuijaza huduma kwa miunganisho kuwa ghali. Hakuna kati ya hizi kinachohitaji programu ya nullchat kupokea au kuhifadhi anwani yako ya IP.`,
   faq_16_title: "Ninaweza kufikia nullchat kupitia Tor?",
   faq_16_body_1: `nullchat inapatikana kama huduma ya siri ya Tor kwa watumiaji katika maeneo yaliyodhibitiwa au mtu yeyote anayetaka safu ya ziada ya kutokujulikana. Fungua Tor Browser na uende kwenye:`,
   faq_16_body_2: `Kwa chaguo-msingi, matoleo ya clearnet na Tor yanaunganishwa na seva ile ile — watumiaji katika yoyote wanaweza kuwasiliana katika vyumba vilevile kwa kutumia siri iliyoshirikiwa ileile. Huduma ya .onion inapitia mtandao wa Tor bila Cloudflare, bila CDN, na bila miundombinu ya wahusika wengine kati yako na seva. Tor inaelekeza muunganisho wako kupitia vituo vingi vilivyosimbwa fiche, hivyo seva wala mwangalizi yeyote hawezi kutambua anwani yako halisi ya IP au mahali ulipo. Huduma ya .onion inatumia HTTP wazi, ambayo ni ya kawaida na salama — Tor yenyewe hutoa usimbaji fiche wa mwanzo hadi mwisho kati ya kivinjari chako na seva. Usimbaji fiche wote wa kiwango cha programu (NaCl secretbox, uondoaji wa ufunguo wa Argon2id) unatumika juu ya hilo. Kumbuka: Tor Browser lazima iwekwe kwa kiwango cha usalama cha "Standard" ili nullchat ifanye kazi, kwani programu inahitaji JavaScript.`,
@@ -88,11 +95,13 @@ Pande zote mbili lazima zikubaliane kuwasha kitufe — inafanya kazi kwa njia il
   faq_18_title: "Muda wa kutokuwa na shughuli ni nini?",
   faq_18_body: `Ukiwa bila shughuli kwa dakika 15 — hakuna kuandika, hakuna kubonyeza, hakuna kusogeza — nullchat itakukatisha muunganisho kiotomatiki na kukurudisha kwenye skrini ya kuingiza nenosiri. Onyo linaonekana dakika ya 13 likikupa chaguo la kubaki. Hii inalinda kikao chako ukiondoka kwenye kifaa chako, kuzuia ujumbe kuungua wakati hakuna mtu anayesoma kwa bidii, na kuhakikisha mazungumzo hayaachwi yakionekana kwenye skrini isiyoangaliwa.`,
   faq_19_title: "Vipi kuhusu anwani za IP?",
-  faq_19_body: `Kwenye clearnet (nullchat.org), programu inapangishwa kwenye mtandao wa pembezoni wa Cloudflare. Anwani yako ya IP inashughulikiwa katika safu ya miundombinu na haisomwi, kurekodiwa, au kuhifadhiwa na msimbo wa programu kamwe. Msimbo wa seva haufikii vichwa vya IP. Hatuna utaratibu wa kukutambua kwa anwani ya mtandao.
+  faq_19_body: `Kwenye clearnet (nullchat.org), ukurasa wa wavuti unatolewa na Vercel, na muunganisho wa gumzo unaenda kwenye seva yetu katika ws.nullchat.org kupitia proksi ya kinyume ya nginx. Kama ilivyo kwa tovuti yoyote, mpangishaji wa ukurasa na proksi ya kinyume kwa lazima huona anwani ya IP unayounganisha kutoka kwayo wakati unapounganisha. nginx haipitishi anwani yako kwa programu ya nullchat na haiirekodi, kwa hiyo programu haipokei wala haihifadhi anwani za IP za wateja kamwe. Ikiwa hutaki mpangishaji wa ukurasa au seva yetu kuona anwani yako ya IP, tumia Tor.
 
 Kwenye huduma ya siri ya Tor (.onion), anwani yako ya IP haionekani kwa seva kamwe — uelekezaji wa onion wa Tor unahakikisha kutokujulikana kamili kwa kiwango cha mtandao. Seva inaona miunganisho kutoka kwenye mtandao wa Tor tu, bila njia ya kukufuatilia.`,
   faq_20_title: "Kuna vidakuzi au vifuatiliaji?",
-  faq_20_body: `Hapana. nullchat haiweki vidakuzi, haitumii uchanganuzi, haipakii hati za wahusika wengine, haijumuishi pikseli za ufuatiliaji, na haifanyi maombi ya nje. Vichwa vya Sera ya Usalama wa Maudhui vinatekeleza hili kwa kiwango cha kivinjari. Unaweza kuthibitisha hili katika zana za msanidi wa kivinjari chako.`,
+  faq_20_body: `Hapana. nullchat haiweki vidakuzi, haitumii uchanganuzi, haipakii hati za wahusika wengine, haijumuishi pikseli za ufuatiliaji, na haifanyi maombi ya nje. Vichwa vya Sera ya Usalama wa Maudhui vinatekeleza hili kwa kiwango cha kivinjari. Unaweza kuthibitisha hili katika zana za msanidi wa kivinjari chako.
+
+Chaguo lako la lugha linahifadhiwa katika sessionStorage kwa kichupo cha sasa pekee, na linafutwa unapofunga kichupo.`,
   faq_21_title: "Kwa nini siwezi kutuma viungo, picha, au faili?",
   faq_21_body: `Kwa makusudi. nullchat ni ya maandishi pekee — hakuna viungo, picha, viambatisho vya faili, au media ya aina yoyote inayoweza kutumwa au kuonyeshwa. Hii ni uamuzi wa usalama wa makusudi, si kikomo. Viungo vinavyobonyezeka na media iliyojumuishwa ndio sehemu kuu ya mashambulizi ya matumizi ya siku-sifuri yanayotumiwa na programu za kijasusi za kibiashara kama Pegasus, Predator, na zana kama hizo za ufuatiliaji. Kiungo kimoja au faili hatari inaweza kuhatarisha kifaa kizima kwa siri. Kwa kuondoa mazungumzo hadi maandishi wazi pekee, nullchat inaondoa njia hii ya mashambulizi kabisa. Hakuna cha kubonyeza, hakuna cha kupakua, na hakuna cha kuonyesha — ambayo inamaanisha hakuna cha kutumia vibaya.`,
   faq_22_title: "Ninaweza kunakili au kupiga picha ya skrini ya ujumbe?",
@@ -100,9 +109,9 @@ Kwenye huduma ya siri ya Tor (.onion), anwani yako ya IP haionekani kwa seva kam
 
 Hizi ni ulinzi wa msuguano, si dhamana kamili. Mtumiaji aliyeazimia anaweza kila wakati kupiga picha ya skrini yake kwa kifaa kingine au kutumia zana za kiwango cha mfumo wa uendeshaji zinazopita vizuizi vya kivinjari. Lengo ni kufanya kunasa kwa kawaida kuwa vigumu na kuimarisha matarajio kwamba mazungumzo katika nullchat hayakusudiwi kuhifadhiwa.`,
   faq_23_title: "Trafiki bandia ni nini?",
-  faq_23_body: `nullchat inatuma kiotomatiki ujumbe bandia uliosimbwa fiche kwa vipindi vya nasibu (kila sekunde 10–60) wakati umeunganishwa kwenye chumba. Ujumbe huu bandia hauwezi kutofautishwa na ujumbe halisi — una ukubwa sawa (shukrani kwa ujazaji uliowekwa), umesimbwa fiche kwa ufunguo uleule, na unapitishwa kupitia njia ileile ya seva. Programu ya mpokeaji inaiondoa kimya baada ya usimbaji fiche kufunguliwa.
+  faq_23_body: `nullchat inatuma kiotomatiki ujumbe bandia uliosimbwa fiche kwa vipindi vya nasibu (kila sekunde 10–60) wakati umeunganishwa kwenye chumba. Ujumbe huu bandia hauwezi kutofautishwa na ujumbe halisi — una ukubwa sawa (shukrani kwa ujazaji uliowekwa), umesimbwa fiche kwa ufunguo uleule, unapitishwa kupitia njia ileile ya seva, na unazalisha mfuatano uleule wa fremu kati ya kivinjari chako na seva kama ujumbe halisi. Programu ya mpokeaji inaiondoa kimya baada ya usimbaji fiche kufunguliwa.
 
-Trafiki bandia inashinda uchambuzi wa trafiki. Bila hiyo, mwangalizi anayefuatilia trafiki ya mtandao angeweza kutambua wakati mawasiliano halisi yanatokea kulingana na wakati vipande vilivyosimbwa fiche vinatumwa. Na trafiki bandia, kuna mkondo unaoendelea wa trafiki inayoonekana sawa bila kujali kama mtu yeyote anaandika kweli — na kufanya iwezekane kutofautisha ujumbe halisi na kelele.`,
+Trafiki bandia inashinda uchambuzi wa trafiki. Bila hiyo, mwangalizi anayefuatilia trafiki ya mtandao angeweza kutambua wakati mawasiliano halisi yanatokea kulingana na wakati vipande vilivyosimbwa fiche vinatumwa. Na trafiki bandia, kuna mkondo unaoendelea wa trafiki inayoonekana sawa bila kujali kama mtu yeyote anaandika kweli — na kufanya isiwezekane kutofautisha ujumbe halisi na kelele.`,
   faq_24_title: "Ujazaji wa muunganisho ni nini?",
   faq_24_body: `Seva inatuma fremu za binary za urefu wa nasibu (baiti 64–512 za data ya nasibu) kwa kila mteja aliyeunganishwa kwa vipindi vya nasibu (kila sekunde 5–30). Fremu hizi si ujumbe — ni kelele tupu ambazo mteja anazipuuza kimya. Pamoja na trafiki bandia ya upande wa mteja, ujazaji wa muunganisho unahakikisha kwamba mifumo ya trafiki ya mtandao haifichua chochote kuhusu kama mawasiliano halisi yanatokea, ujumbe ngapi unabadilishwa, au washiriki wako hai lini.`,
   faq_25_title: "Kitufe cha hofu ni nini?",

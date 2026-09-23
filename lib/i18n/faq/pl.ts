@@ -4,7 +4,7 @@ export const pl: Record<FaqKey, string> = {
   faq_1_title: "Czym jest nullchat?",
   faq_1_body: `nullchat to anonimowy, szyfrowany end-to-end pokój czatowy, który nie wymaga kont, adresów e-mail, numerów telefonu ani żadnych danych osobowych. Wpisujesz wspólny sekret — hasło — i każda osoba, która wpisze to samo hasło, trafia do tego samego pokoju. To wszystko.`,
   faq_2_title: "Jak dołączyć do pokoju?",
-  faq_2_body: `Ty i osoba, z którą chcesz rozmawiać, uzgadniacie wcześniej wspólny sekret — osobiście, przez telefon, w dowolny sposób. Oboje wpisujecie ten sekret w nullchat i jesteście w tym samym zaszyfrowanym pokoju. Nie ma listy pokoi, katalogu ani możliwości przeglądania. Jeśli nie znasz sekretu, pokój dla ciebie nie istnieje.`,
+  faq_2_body: `Ty i osoba, z którą chcesz rozmawiać, uzgadniacie wcześniej wspólny sekret — osobiście, przez telefon, w dowolny sposób. Oboje wpisujecie ten sekret w nullchat i jesteście w tym samym zaszyfrowanym pokoju. Nie ma listy pokoi, katalogu ani możliwości przeglądania. Aby wejść, twoja przeglądarka musi udowodnić serwerowi, że zna sekret, więc sama znajomość identyfikatora pokoju nie wystarczy. Jeśli nie znasz sekretu, pokój dla ciebie nie istnieje.`,
   faq_3_title: "Jak wybrać wspólny sekret?",
   faq_3_body: `Twój wspólny sekret to najważniejszy element twojego bezpieczeństwa. Jest zarówno kluczem do pokoju, jak i kluczem do szyfrowania — jeśli ktoś go odgadnie, może przeczytać wszystko. Traktuj go jak hasło do sejfu.
 
@@ -14,16 +14,19 @@ Udostępniaj sekret przez bezpieczny kanał pozapasmowy — najlepiej osobiście
 
 Wskaźnik siły na ekranie wejściowym daje przybliżone pojęcie o odporności sekretu na ataki siłowe, ale żaden wskaźnik nie zastąpi rozsądku. W razie wątpliwości — wydłuż i dodaj losowości.`,
   faq_4_title: "Jak działa szyfrowanie?",
-  faq_4_body: `Gdy wpisujesz wspólny sekret, dwie rzeczy dzieją się całkowicie w twojej przeglądarce:
+  faq_4_body: `Gdy wpisujesz wspólny sekret, twoja przeglądarka przetwarza go przez Argon2id, pamięciowo wymagającą funkcję wyprowadzania klucza, w dwóch oddzielnych wyprowadzeniach. Każde z nich ma własną sól i używa 16 MiB pamięci oraz 3 iteracji. Wszystko to dzieje się na twoim urządzeniu.
 
-1. Sekret jest przetwarzany przez Argon2id — pamięciowo wymagającą funkcję wyprowadzania klucza — z użyciem domeny soli, aby wygenerować identyfikator pokoju. Ten hash jest wysyłany do serwera, aby wiedział, do jakiego pokoju cię połączyć. Serwer nigdy nie widzi twojego właściwego sekretu.
+1. Pierwsze wyprowadzenie tworzy identyfikator pokoju. Jest on wysyłany do serwera, aby serwer wiedział, do jakiego pokoju cię połączyć. Serwer nigdy nie widzi twojego właściwego sekretu.
 
-2. Sekret jest przepuszczany przez drugie, niezależne wyprowadzenie Argon2id (16 MiB pamięci, 3 iteracje), aby wygenerować 256-bitowy klucz szyfrowania. Ten klucz nigdy nie opuszcza twojej przeglądarki. Argon2id wymaga dużych bloków pamięci RAM na każdą próbę, co sprawia, że ataki siłowe GPU i ASIC na twoje hasło są o rzędy wielkości trudniejsze niż przy tradycyjnych KDF.
+2. Drugie wyprowadzenie tworzy w jednym przebiegu 64 bajty, które są dzielone na dwie części: 256-bitowy klucz szyfrowania i sekret dostępu do pokoju. Klucz szyfrowania nigdy nie opuszcza twojej przeglądarki. Za pomocą sekretu dostępu do pokoju twoja przeglądarka udowadnia serwerowi, że znasz wspólny sekret, dlatego sama znajomość identyfikatora pokoju nie wystarczy, aby do niego dołączyć.
 
-Każda wiadomość, którą wysyłasz, jest szyfrowana za pomocą NaCl secretbox (XSalsa20-Poly1305) przy użyciu tego klucza, zanim opuści twoje urządzenie. Serwer odbiera, przechowuje i przekazuje wyłącznie szyfrogram — zaszyfrowane bloki danych, które bez klucza są bez znaczenia. Nie możemy czytać twoich wiadomości. Nikt nie może, chyba że zna wspólny sekret.`,
+Ponieważ Argon2id wymaga dużego bloku pamięci RAM na każdą próbę, odgadnięcie twojego hasła metodą siłową na GPU i ASIC jest znacznie trudniejsze niż przy starszych funkcjach wyprowadzania klucza.
+
+Każda wiadomość jest szyfrowana za pomocą NaCl secretbox (XSalsa20-Poly1305) przy użyciu klucza szyfrowania, zanim opuści twoje urządzenie. Serwer odbiera, przechowuje i przekazuje wyłącznie szyfrogram, który bez klucza jest bez znaczenia. Nie możemy czytać twoich wiadomości i nikt nie może, chyba że zna wspólny sekret.`,
   faq_5_title: "Co widzi serwer?",
   faq_5_body: `Serwer widzi:
 • Hash wyprowadzony przez Argon2id (identyfikator pokoju) — nie twoje hasło
+• Wartość wyprowadzoną z twojego wspólnego sekretu za pomocą Argon2id, która dowodzi, że go znasz. Serwer przechowuje jedynie jej hash, a sama wartość nie ujawnia ani sekretu, ani klucza szyfrowania.
 • Zaszyfrowane bloki szyfrogramu — nie twoje wiadomości
 • Liczbę aktywnych połączeń w pokoju
 • Znaczniki czasu odbioru zaszyfrowanych bloków
@@ -32,9 +35,9 @@ Serwer NIE widzi:
 • Twojego wspólnego sekretu / hasła
 • Treści twoich wiadomości
 • Twojej tożsamości ani nazwy użytkownika (aliasy są zaszyfrowane wewnątrz wiadomości)
-• Twojego adresu IP (usuwany na brzegu sieci przez naszego dostawcę hostingu)`,
+• Twojego adresu IP (aplikacja nullchat nigdy go nie otrzymuje; zobacz „A co z adresami IP?" poniżej)`,
   faq_6_title: "Czym jest dopełnianie wiadomości?",
-  faq_6_body: `Przed szyfrowaniem każda wiadomość jest dopełniana do stałego bloku 8192 bajtów z użyciem 2-bajtowego prefiksu długości, po którym następuje treść wiadomości i losowy szum. Oznacza to, że krótka wiadomość jak „cześć" generuje szyfrogram dokładnie tego samego rozmiaru co wiadomość o maksymalnej długości. Bez dopełniania obserwator mógłby odgadnąć treść wiadomości na podstawie długości szyfrogramu. Losowe wypełnienie szumem (nie zerami) zapewnia brak rozpoznawalnych wzorców w tekście jawnym przed szyfrowaniem. Dopełnianie całkowicie eliminuje ten kanał boczny.`,
+  faq_6_body: `Przed szyfrowaniem każda wiadomość jest dopełniana do stałego bloku 16384 bajtów z użyciem 2-bajtowego prefiksu długości, po którym następuje treść wiadomości i losowy szum. Oznacza to, że krótka wiadomość jak „cześć" generuje szyfrogram dokładnie tego samego rozmiaru co wiadomość o maksymalnej długości. Bez dopełniania obserwator mógłby odgadnąć treść wiadomości na podstawie długości szyfrogramu. Losowe wypełnienie szumem (nie zerami) zapewnia brak rozpoznawalnych wzorców w tekście jawnym przed szyfrowaniem. Dopełnianie całkowicie eliminuje ten kanał boczny.`,
   faq_7_title: "Czym jest zaciemnianie znaczników czasu?",
   faq_7_body: `Znaczniki czasu zawarte w wiadomościach są zaokrąglane do najbliższej minuty przed szyfrowaniem. Zapobiega to atakom korelacji czasowej, w których obserwator mógłby dopasować wzorce wiadomości między różnymi kanałami, porównując dokładne znaczniki czasu.`,
   faq_8_title: "Jak długo trwają wiadomości?",
@@ -58,17 +61,21 @@ Wpisujesz wspólny sekret, zostawiasz zaszyfrowaną wiadomość i rozłączasz s
 
 Nadawca może bezpiecznie połączyć się ponownie w dowolnym momencie, aby sprawdzić, czy wiadomość nadal czeka — bez uruchamiania odliczania, o ile jest jedyną osobą w pokoju. Żadna ze stron nie musi być online w tym samym czasie. Żadna ze stron nie potrzebuje konta. Żadna ze stron nie jest identyfikowalna. Serwer nigdy nie wie, kto zostawił wiadomość ani kto ją odebrał — wie tylko, że zaszyfrowany blok został zapisany i później pobrany. Po spaleniu nie ma dowodu, że wymiana kiedykolwiek miała miejsce.`,
   faq_10_title: "Jak długo istnieją pokoje?",
-  faq_10_body: `Pokój istnieje tak długo, jak ma aktywne połączenia lub niewygasłe wiadomości. Gdy ostatnia osoba się rozłączy i wszystkie wiadomości wygasną lub zostaną spalone, pokój znika. Nie ma trwałego stanu pokoju. Jeśli nie wysłano żadnych wiadomości, pokój jest tylko aktywnym połączeniem — nic nie jest przechowywane i znika w momencie, gdy wszyscy go opuszczą.`,
+  faq_10_body: `Pokój istnieje tak długo, jak ma aktywne połączenia lub niewygasłe wiadomości. Gdy ostatnia osoba się rozłączy i wszystkie wiadomości wygasną lub zostaną spalone, pokój znika. Nic z niego nie zostaje zachowane. Jeśli nie wysłano żadnych wiadomości, pokój jest tylko aktywnym połączeniem — nic nie jest przechowywane i znika w momencie, gdy wszyscy go opuszczą.`,
   faq_11_title: "Czym jest przycisk Zakończ?",
   faq_11_body: `Zakończ natychmiast usuwa z serwera każdą wiadomość, którą wysłałeś podczas bieżącej sesji, dla wszystkich w pokoju. Inni uczestnicy zobaczą, jak twoje wiadomości znikają z ich ekranów w czasie rzeczywistym. Następnie zostajesz rozłączony z pokoju. Użyj tego, jeśli musisz wyjść bez śladu.`,
   faq_12_title: "Czym jest przycisk Wyjdź?",
   faq_12_body: `Wyjdź po prostu rozłącza cię z pokoju. Twoje wiadomości pozostają na serwerze — nieprzeczytane wiadomości nadal czekają (do 24 godzin), a już przeczytane kontynuują 5-minutowe odliczanie do spalenia. Jeśli dołączysz ponownie do pokoju później, otrzymasz nowy losowy alias — nie ma sposobu, aby powiązać twoją starą i nową tożsamość.`,
   faq_13_title: "Czym są losowe aliasy?",
-  faq_13_body: `Gdy wchodzisz do pokoju, otrzymujesz losowy 8-znakowy kod szesnastkowy (np. „a9f2b71c") jako alias. Ten alias jest generowany w twojej przeglądarce, szyfrowany wewnątrz każdej wiadomości i nigdy nie jest wysyłany do serwera w postaci jawnej. Jeśli się rozłączysz i połączysz ponownie, otrzymasz nowy alias. Nie ma możliwości rezerwacji, wyboru ani zachowania aliasu.`,
+  faq_13_body: `Gdy wchodzisz do pokoju, otrzymujesz losowy 8-znakowy kod szesnastkowy (np. „a9f2b71c") jako alias. Ten alias jest generowany w twojej przeglądarce, szyfrowany wewnątrz każdej wiadomości i nigdy nie jest wysyłany do serwera w postaci jawnej. Jeśli się rozłączysz i połączysz ponownie, otrzymasz nowy alias. Nie ma możliwości rezerwacji, wyboru ani zachowania aliasu.
+
+Alias to etykieta, a nie zweryfikowana tożsamość. Każdy, kto zna wspólny sekret, może dołączyć do pokoju i ustawić sobie dowolny alias, więc traktuj każdą osobę w pokoju jako kogoś, kto zna sekret. Jeśli musisz mieć pewność, z kim rozmawiasz, potwierdź to innym kanałem, na przykład uzgadniając wcześniej słowo kodowe. Udostępniaj sekret tylko osobom, którym ufasz.`,
   faq_14_title: "Czy istnieje limit uczestników?",
-  faq_14_body: `Każdy pokój obsługuje do 50 jednoczesnych połączeń. Jeśli pokój jest pełny, zobaczysz komunikat „Pokój jest pełny". Ten limit istnieje, aby zachować kameralność pokoi i zapobiec nadużyciom.`,
+  faq_14_body: `Każdy pokój obsługuje do 50 jednoczesnych połączeń. Jeśli pokój jest pełny, zobaczysz komunikat „Pokój jest pełny". Serwer jako całość również ma limit liczby połączeń, które przyjmuje jednocześnie. Te limity istnieją, aby zachować kameralność pokoi i zapobiec nadużyciom.`,
   faq_15_title: "Czy jest ograniczenie częstotliwości?",
-  faq_15_body: `Tak. Każde połączenie jest ograniczone do 1 wiadomości na sekundę. Zapobiega to spamowi i nadużyciom bez konieczności weryfikacji tożsamości. Jeśli wysyłasz wiadomości zbyt szybko, zobaczysz krótki komunikat „Zwolnij".`,
+  faq_15_body: `Tak. Każde połączenie jest ograniczone do 1 wiadomości na sekundę. Każdy pokój ma ponadto limit antyfloodowy określający, ile wiadomości łącznie można wysłać w krótkim czasie. Zapobiega to spamowi i nadużyciom bez konieczności weryfikacji tożsamości. Jeśli wysyłasz wiadomości zbyt szybko, zobaczysz krótki komunikat „Zwolnij".
+
+Nowe połączenia również są ograniczone. W sieci clearnet odwrotne proxy (reverse proxy) przed serwerem ogranicza liczbę połączeń, które może otworzyć każdy adres sieciowy. Usługa Tor jest chroniona przez mechanizmy obronne proof-of-work sieci Tor dla usług onion, które sprawiają, że zalewanie jej połączeniami jest kosztowne. Żaden z tych mechanizmów nie wymaga, aby aplikacja nullchat otrzymywała lub przechowywała twój adres IP.`,
   faq_16_title: "Czy mogę korzystać z nullchat przez Tor?",
   faq_16_body_1: `nullchat jest dostępny jako ukryta usługa Tor dla użytkowników w regionach objętych cenzurą lub każdego, kto chce dodatkowej warstwy anonimowości. Otwórz przeglądarkę Tor i przejdź do:`,
   faq_16_body_2: `Domyślnie zarówno wersja clearnet, jak i Tor łączą się z tym samym backendem — użytkownicy obu wersji mogą komunikować się ze sobą w tych samych pokojach, używając tego samego wspólnego sekretu. Usługa .onion kieruje ruch przez sieć Tor bez Cloudflare, bez CDN i bez infrastruktury firm trzecich między tobą a serwerem. Tor kieruje twoje połączenie przez wiele zaszyfrowanych przekaźników, więc ani serwer, ani żaden obserwator nie może ustalić twojego prawdziwego adresu IP ani lokalizacji. Usługa .onion używa zwykłego HTTP, co jest oczekiwane i bezpieczne — sam Tor zapewnia szyfrowanie end-to-end między twoją przeglądarką a serwerem. Całe szyfrowanie na poziomie aplikacji (NaCl secretbox, wyprowadzanie klucza Argon2id) działa ponad tym. Uwaga: przeglądarka Tor musi być ustawiona na poziom bezpieczeństwa „Standard", aby nullchat działał, ponieważ aplikacja wymaga JavaScript.`,
@@ -88,11 +95,13 @@ Obie strony muszą zgodzić się na włączenie przełącznika — działa to ta
   faq_18_title: "Czym jest limit czasu nieaktywności?",
   faq_18_body: `Jeśli jesteś nieaktywny przez 15 minut — bez pisania, dotykania, przewijania — nullchat automatycznie cię rozłączy i wróci do ekranu wpisywania hasła. Ostrzeżenie pojawia się po 13 minutach, dając ci opcję pozostania. Chroni to twoją sesję, gdy odchodzisz od urządzenia, zapobiegając spalaniu wiadomości, gdy nikt ich aktywnie nie czyta, i zapewniając, że czat nie pozostaje widoczny na pozostawionym bez nadzoru ekranie.`,
   faq_19_title: "A co z adresami IP?",
-  faq_19_body: `W sieci clearnet (nullchat.org) aplikacja jest hostowana na brzegowej sieci Cloudflare. Twój adres IP jest obsługiwany na poziomie infrastruktury i nigdy nie jest odczytywany, rejestrowany ani przechowywany przez kod aplikacji. Kod serwera nie uzyskuje dostępu do nagłówków IP. Nie mamy mechanizmu identyfikacji cię po adresie sieciowym.
+  faq_19_body: `W sieci clearnet (nullchat.org) strona internetowa jest serwowana przez Vercel, a połączenie czatu trafia do naszego serwera pod adresem ws.nullchat.org przez odwrotne proxy nginx. Jak w przypadku każdej strony internetowej, host strony i odwrotne proxy siłą rzeczy widzą adres IP, z którego się łączysz, w momencie nawiązywania połączenia. nginx nie przekazuje twojego adresu do aplikacji nullchat i go nie rejestruje, więc aplikacja nigdy nie otrzymuje ani nie przechowuje adresów IP klientów. Jeśli nie chcesz, aby host strony lub nasz serwer widział twój adres IP, korzystaj z Tor.
 
 W ukrytej usłudze Tor (.onion) twój adres IP nigdy nie jest widoczny dla serwera — routing onion Tor zapewnia pełną anonimowość na poziomie sieci. Serwer widzi tylko połączenia z sieci Tor, bez możliwości prześledzenia ich do ciebie.`,
   faq_20_title: "Czy są jakieś pliki cookie lub trackery?",
-  faq_20_body: `Nie. nullchat nie ustawia plików cookie, nie używa analityki, nie ładuje skryptów firm trzecich, nie osadza pikseli śledzących i nie wykonuje żadnych zewnętrznych żądań. Nagłówki Content Security Policy wymuszają to na poziomie przeglądarki. Możesz to zweryfikować w narzędziach deweloperskich przeglądarki.`,
+  faq_20_body: `Nie. nullchat nie ustawia plików cookie, nie używa analityki, nie ładuje skryptów firm trzecich, nie osadza pikseli śledzących i nie wykonuje żadnych zewnętrznych żądań. Nagłówki Content Security Policy wymuszają to na poziomie przeglądarki. Możesz to zweryfikować w narzędziach deweloperskich przeglądarki.
+
+Wybrany język jest przechowywany w sessionStorage tylko dla bieżącej karty i jest usuwany, gdy ją zamkniesz.`,
   faq_21_title: "Dlaczego nie mogę wysyłać linków, obrazów ani plików?",
   faq_21_body: `Z założenia. nullchat obsługuje wyłącznie tekst — nie można wysyłać ani renderować linków, obrazów, załączników ani multimediów jakiegokolwiek rodzaju. To celowa decyzja bezpieczeństwa, nie ograniczenie. Klikalne linki i osadzone multimedia to główna powierzchnia ataku dla exploitów zero-day używanych przez komercyjne oprogramowanie szpiegowskie, takie jak Pegasus, Predator i podobne narzędzia inwigilacji. Jeden złośliwy link lub plik może cicho skompromitować całe urządzenie. Ograniczając czat do czystego tekstu, nullchat całkowicie eliminuje ten wektor ataku. Nie ma nic do kliknięcia, nic do pobrania i nic do renderowania — co oznacza, że nie ma nic do wykorzystania.`,
   faq_22_title: "Czy mogę kopiować lub robić zrzuty ekranu wiadomości?",
@@ -100,7 +109,7 @@ W ukrytej usłudze Tor (.onion) twój adres IP nigdy nie jest widoczny dla serwe
 
 Są to zabezpieczenia oparte na tarciu, a nie absolutne gwarancje. Zdeterminowany użytkownik zawsze może sfotografować ekran innym urządzeniem lub użyć narzędzi na poziomie systemu operacyjnego, które omijają ograniczenia przeglądarki. Celem jest utrudnienie przypadkowego przechwytywania i wzmocnienie oczekiwania, że rozmowy w nullchat nie są przeznaczone do zapisywania.`,
   faq_23_title: "Czym jest ruch pozorny?",
-  faq_23_body: `nullchat automatycznie wysyła zaszyfrowane wiadomości pozorne w losowych odstępach czasu (co 10–60 sekund), gdy jesteś połączony z pokojem. Te wiadomości pozorne są nieodróżnialne od prawdziwych wiadomości — mają ten sam rozmiar (dzięki stałemu dopełnianiu), są szyfrowane tym samym kluczem i przesyłane tą samą ścieżką serwerową. Klient odbiorcy cicho je odrzuca po odszyfrowaniu.
+  faq_23_body: `nullchat automatycznie wysyła zaszyfrowane wiadomości pozorne w losowych odstępach czasu (co 10–60 sekund), gdy jesteś połączony z pokojem. Te wiadomości pozorne są nieodróżnialne od prawdziwych wiadomości — mają ten sam rozmiar (dzięki stałemu dopełnianiu), są szyfrowane tym samym kluczem, przesyłane tą samą ścieżką serwerową i wywołują między twoją przeglądarką a serwerem tę samą sekwencję ramek co prawdziwa wiadomość. Klient odbiorcy cicho je odrzuca po odszyfrowaniu.
 
 Ruch pozorny pokonuje analizę ruchu. Bez niego obserwator monitorujący ruch sieciowy mógłby określić, kiedy odbywa się prawdziwa komunikacja, na podstawie tego, kiedy wysyłane są zaszyfrowane bloki. Z ruchem pozornym istnieje stały strumień identycznie wyglądającego ruchu, niezależnie od tego, czy ktokolwiek faktycznie pisze — co uniemożliwia odróżnienie prawdziwych wiadomości od szumu.`,
   faq_24_title: "Czym jest dopełnianie połączenia?",

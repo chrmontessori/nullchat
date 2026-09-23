@@ -4,7 +4,7 @@ export const vi: Record<FaqKey, string> = {
   faq_1_title: "nullchat là gì?",
   faq_1_body: `nullchat là một phòng chat ẩn danh, được mã hóa đầu cuối, không yêu cầu tài khoản, không email, không số điện thoại, và không cần bất kỳ thông tin cá nhân nào. Bạn nhập một bí mật chung — một mật khẩu — và bất kỳ ai nhập cùng mật khẩu đó sẽ vào cùng một phòng. Chỉ vậy thôi.`,
   faq_2_title: "Làm thế nào để vào một phòng?",
-  faq_2_body: `Bạn và người muốn trò chuyện thống nhất trước một bí mật chung — trực tiếp, qua cuộc gọi điện thoại, bằng bất kỳ cách nào bạn muốn. Cả hai cùng nhập bí mật đó vào nullchat và bạn sẽ ở trong cùng một phòng được mã hóa. Không có danh sách phòng, không có thư mục, không có cách duyệt. Nếu bạn không biết bí mật, phòng đó không tồn tại đối với bạn.`,
+  faq_2_body: `Bạn và người muốn trò chuyện thống nhất trước một bí mật chung — trực tiếp, qua cuộc gọi điện thoại, bằng bất kỳ cách nào bạn muốn. Cả hai cùng nhập bí mật đó vào nullchat và bạn sẽ ở trong cùng một phòng được mã hóa. Không có danh sách phòng, không có thư mục, không có cách duyệt. Để vào phòng, trình duyệt của bạn phải chứng minh với máy chủ rằng nó biết bí mật, vì vậy chỉ biết mã định danh của phòng thôi là chưa đủ. Nếu bạn không biết bí mật, phòng đó không tồn tại đối với bạn.`,
   faq_3_title: "Tôi nên chọn bí mật chung như thế nào?",
   faq_3_body: `Bí mật chung là phần quan trọng nhất trong bảo mật của bạn. Nó vừa là chìa khóa vào phòng, vừa là chìa khóa mã hóa — nếu ai đó đoán được, họ có thể đọc mọi thứ. Hãy coi nó như mật khẩu của một két sắt.
 
@@ -14,16 +14,19 @@ Chia sẻ bí mật qua một kênh an toàn, ngoài băng tần — trực ti�
 
 Chỉ báo độ mạnh trên màn hình nhập cho bạn cảm nhận sơ bộ về khả năng chống lại tấn công brute-force của bí mật, nhưng không chỉ báo nào thay thế được phán đoán tốt. Khi nghi ngờ, hãy làm cho nó dài hơn và ngẫu nhiên hơn.`,
   faq_4_title: "Mã hóa hoạt động như thế nào?",
-  faq_4_body: `Khi bạn nhập bí mật chung, hai điều xảy ra hoàn toàn trong trình duyệt của bạn:
+  faq_4_body: `Khi bạn nhập bí mật chung, trình duyệt của bạn đưa nó qua Argon2id — một hàm dẫn xuất khóa đòi hỏi nhiều bộ nhớ — trong hai phép dẫn xuất riêng biệt. Mỗi phép dẫn xuất có salt riêng và sử dụng 16 MiB bộ nhớ cùng 3 vòng lặp. Tất cả diễn ra trên thiết bị của bạn.
 
-1. Bí mật được xử lý qua Argon2id — một hàm dẫn xuất khóa đòi hỏi nhiều bộ nhớ — sử dụng một salt tách biệt theo miền để tạo ra ID phòng. Hash này được gửi đến máy chủ để nó biết kết nối bạn vào phòng nào. Máy chủ không bao giờ thấy bí mật thực sự của bạn.
+1. Phép dẫn xuất thứ nhất tạo ra ID phòng. ID này được gửi đến máy chủ để máy chủ biết kết nối bạn vào phòng nào. Máy chủ không bao giờ thấy bí mật thực sự của bạn.
 
-2. Bí mật được chạy qua một phép dẫn xuất Argon2id thứ hai, độc lập (16 MiB bộ nhớ, 3 vòng lặp) để tạo ra một khóa mã hóa 256-bit. Khóa này không bao giờ rời khỏi trình duyệt của bạn. Argon2id yêu cầu các khối RAM lớn cho mỗi lần thử, khiến các cuộc tấn công brute-force bằng GPU và ASIC vào mật khẩu của bạn khó hơn nhiều bậc so với các KDF truyền thống.
+2. Phép dẫn xuất thứ hai tạo ra 64 byte trong một lần chạy duy nhất, được chia làm hai: một khóa mã hóa 256-bit và một bí mật truy cập phòng. Khóa mã hóa không bao giờ rời khỏi trình duyệt của bạn. Bí mật truy cập phòng là cách trình duyệt của bạn chứng minh với máy chủ rằng bạn biết bí mật chung, vì vậy chỉ biết ID phòng thôi là không đủ để vào phòng.
 
-Mọi tin nhắn bạn gửi đều được mã hóa bằng NaCl secretbox (XSalsa20-Poly1305) với khóa đó trước khi rời thiết bị của bạn. Máy chủ nhận, lưu trữ và chuyển tiếp chỉ bản mã — các blob được mã hóa vô nghĩa nếu không có khóa. Chúng tôi không thể đọc tin nhắn của bạn. Không ai có thể, trừ khi họ biết bí mật chung.`,
+Argon2id yêu cầu các khối RAM lớn cho mỗi lần thử, khiến các cuộc tấn công brute-force bằng GPU và ASIC vào mật khẩu của bạn khó hơn nhiều bậc so với các KDF truyền thống.
+
+Mọi tin nhắn đều được mã hóa bằng NaCl secretbox (XSalsa20-Poly1305) với khóa mã hóa trước khi rời thiết bị của bạn. Máy chủ nhận, lưu trữ và chuyển tiếp chỉ bản mã — các blob được mã hóa vô nghĩa nếu không có khóa. Chúng tôi không thể đọc tin nhắn của bạn. Không ai có thể, trừ khi họ biết bí mật chung.`,
   faq_5_title: "Máy chủ thấy gì?",
   faq_5_body: `Máy chủ thấy:
 • Một hash dẫn xuất từ Argon2id (ID phòng) — không phải mật khẩu của bạn
+• Một giá trị được dẫn xuất từ bí mật chung của bạn bằng Argon2id, chứng minh rằng bạn biết bí mật đó. Máy chủ chỉ giữ một hash của giá trị này, và giá trị này không tiết lộ bí mật cũng như khóa mã hóa.
 • Các blob bản mã được mã hóa — không phải tin nhắn của bạn
 • Số lượng kết nối đang hoạt động trong một phòng
 • Dấu thời gian khi các blob được mã hóa được nhận
@@ -32,9 +35,9 @@ Máy chủ KHÔNG thấy:
 • Bí mật chung / mật khẩu của bạn
 • Nội dung tin nhắn của bạn
 • Danh tính hoặc tên người dùng của bạn (bí danh được mã hóa bên trong tin nhắn)
-• Địa chỉ IP của bạn (bị loại bỏ tại biên bởi nhà cung cấp hosting)`,
+• Địa chỉ IP của bạn (ứng dụng nullchat không bao giờ nhận được địa chỉ này; xem "Còn về địa chỉ IP thì sao?" bên dưới)`,
   faq_6_title: "Đệm tin nhắn là gì?",
-  faq_6_body: `Trước khi mã hóa, mỗi tin nhắn được đệm đến một khối cố định 8.192 byte bằng tiền tố độ dài 2 byte, theo sau là nội dung tin nhắn và nhiễu ngẫu nhiên. Điều này có nghĩa là một tin nhắn ngắn như "xin chào" tạo ra bản mã có kích thước giống hệt tin nhắn dài tối đa. Nếu không có đệm, người quan sát có thể đoán nội dung tin nhắn dựa trên độ dài bản mã. Phần nhiễu ngẫu nhiên (không phải số không) đảm bảo không có mẫu nào có thể nhận dạng trong bản rõ trước khi mã hóa. Đệm loại bỏ hoàn toàn kênh phụ này.`,
+  faq_6_body: `Trước khi mã hóa, mỗi tin nhắn được đệm đến một khối cố định 16.384 byte bằng tiền tố độ dài 2 byte, theo sau là nội dung tin nhắn và nhiễu ngẫu nhiên. Điều này có nghĩa là một tin nhắn ngắn như "xin chào" tạo ra bản mã có kích thước giống hệt tin nhắn dài tối đa. Nếu không có đệm, người quan sát có thể đoán nội dung tin nhắn dựa trên độ dài bản mã. Phần nhiễu ngẫu nhiên (không phải số không) đảm bảo không có mẫu nào có thể nhận dạng trong bản rõ trước khi mã hóa. Đệm loại bỏ hoàn toàn kênh phụ này.`,
   faq_7_title: "Làm mờ dấu thời gian là gì?",
   faq_7_body: `Dấu thời gian trong tin nhắn được làm tròn đến phút gần nhất trước khi mã hóa. Điều này ngăn chặn các cuộc tấn công tương quan thời gian, trong đó người quan sát có thể so khớp các mẫu tin nhắn trên các kênh khác nhau bằng cách so sánh dấu thời gian chính xác.`,
   faq_8_title: "Tin nhắn tồn tại bao lâu?",
@@ -58,17 +61,21 @@ Bạn nhập bí mật chung, để lại tin nhắn được mã hóa và ngắ
 
 Người gửi có thể kết nối lại an toàn bất cứ lúc nào để kiểm tra xem tin nhắn có còn đang chờ không — mà không kích hoạt bất kỳ đếm ngược nào, miễn là họ là người duy nhất trong phòng. Không bên nào cần trực tuyến cùng lúc. Không bên nào cần tài khoản. Không bên nào có thể nhận dạng được. Máy chủ không bao giờ biết ai để lại tin nhắn hoặc ai nhận nó — chỉ biết rằng một blob được mã hóa đã được lưu trữ và sau đó được truy xuất. Sau khi tự hủy, không có bằng chứng nào cho thấy cuộc trao đổi đã từng xảy ra.`,
   faq_10_title: "Phòng tồn tại bao lâu?",
-  faq_10_body: `Một phòng tồn tại miễn là nó có kết nối đang hoạt động hoặc tin nhắn chưa hết hạn. Khi người cuối cùng ngắt kết nối và tất cả tin nhắn đã hết hạn hoặc bị tự hủy, phòng biến mất. Không có trạng thái phòng lâu dài. Nếu không có tin nhắn nào được gửi, phòng chỉ là một kết nối trực tiếp — không có gì được lưu trữ, và nó biến mất ngay khi mọi người rời đi.`,
+  faq_10_body: `Một phòng tồn tại miễn là nó có kết nối đang hoạt động hoặc tin nhắn chưa hết hạn. Khi người cuối cùng ngắt kết nối và tất cả tin nhắn đã hết hạn hoặc bị tự hủy, phòng biến mất. Không có gì về phòng được giữ lại. Nếu không có tin nhắn nào được gửi, phòng chỉ là một kết nối trực tiếp — không có gì được lưu trữ, và nó biến mất ngay khi mọi người rời đi.`,
   faq_11_title: "Nút Kết thúc là gì?",
   faq_11_body: `Kết thúc ngay lập tức xóa mọi tin nhắn bạn đã gửi trong phiên hiện tại khỏi máy chủ cho tất cả mọi người trong phòng. Những người tham gia khác sẽ thấy tin nhắn của bạn biến mất khỏi màn hình của họ trong thời gian thực. Sau đó bạn bị ngắt kết nối khỏi phòng. Sử dụng điều này nếu bạn cần rời đi mà không để lại dấu vết.`,
   faq_12_title: "Nút Rời đi là gì?",
   faq_12_body: `Rời đi chỉ đơn giản ngắt kết nối bạn khỏi phòng. Tin nhắn của bạn vẫn còn trên máy chủ — tin nhắn chưa đọc tiếp tục chờ (tối đa 24 giờ), và tin nhắn đã đọc tiếp tục đếm ngược tự hủy 5 phút. Nếu bạn tham gia lại phòng sau, bạn sẽ nhận được bí danh ngẫu nhiên mới — không có cách nào liên kết danh tính cũ và mới của bạn.`,
   faq_13_title: "Bí danh ngẫu nhiên là gì?",
-  faq_13_body: `Khi bạn vào một phòng, bạn được gán một mã hex ngẫu nhiên gồm 8 ký tự (ví dụ "a9f2b71c") làm bí danh. Bí danh này được tạo trong trình duyệt, mã hóa bên trong mỗi tin nhắn, và không bao giờ được gửi đến máy chủ dưới dạng văn bản thuần. Nếu bạn ngắt kết nối và kết nối lại, bạn nhận bí danh mới. Không có cách nào để đặt trước, chọn hoặc duy trì bí danh.`,
+  faq_13_body: `Khi bạn vào một phòng, bạn được gán một mã hex ngẫu nhiên gồm 8 ký tự (ví dụ "a9f2b71c") làm bí danh. Bí danh này được tạo trong trình duyệt, mã hóa bên trong mỗi tin nhắn, và không bao giờ được gửi đến máy chủ dưới dạng văn bản thuần. Nếu bạn ngắt kết nối và kết nối lại, bạn nhận bí danh mới. Không có cách nào để đặt trước, chọn hoặc duy trì bí danh.
+
+Bí danh chỉ là một nhãn, không phải danh tính đã được xác minh. Bất kỳ ai biết bí mật chung đều có thể vào phòng và đặt bí danh của mình thành bất cứ thứ gì, vì vậy hãy coi mọi người trong phòng là người có bí mật. Nếu bạn cần chắc chắn mình đang nói chuyện với ai, hãy xác nhận qua một kênh khác, ví dụ bằng cách thống nhất trước một từ mã. Chỉ chia sẻ bí mật với những người bạn tin tưởng.`,
   faq_14_title: "Có giới hạn người tham gia không?",
-  faq_14_body: `Mỗi phòng hỗ trợ tối đa 50 kết nối đồng thời. Nếu phòng đã đầy, bạn sẽ thấy thông báo "Phòng đã đầy". Giới hạn này tồn tại để giữ phòng riêng tư và ngăn chặn lạm dụng.`,
+  faq_14_body: `Mỗi phòng hỗ trợ tối đa 50 kết nối đồng thời. Nếu phòng đã đầy, bạn sẽ thấy thông báo "Phòng đã đầy". Toàn bộ máy chủ cũng có giới hạn về số kết nối mà nó chấp nhận cùng lúc. Các giới hạn này tồn tại để giữ phòng riêng tư và ngăn chặn lạm dụng.`,
   faq_15_title: "Có giới hạn tốc độ không?",
-  faq_15_body: `Có. Mỗi kết nối bị giới hạn 1 tin nhắn mỗi giây. Điều này ngăn chặn spam và lạm dụng mà không yêu cầu bất kỳ xác minh danh tính nào. Nếu bạn gửi tin nhắn quá nhanh, bạn sẽ thấy thông báo ngắn "Chậm lại".`,
+  faq_15_body: `Có. Mỗi kết nối bị giới hạn 1 tin nhắn mỗi giây. Mỗi phòng cũng có giới hạn chống tràn ngập đối với tổng số tin nhắn có thể được gửi trong một khoảng thời gian ngắn. Điều này ngăn chặn spam và lạm dụng mà không yêu cầu bất kỳ xác minh danh tính nào. Nếu bạn gửi tin nhắn quá nhanh, bạn sẽ thấy thông báo ngắn "Chậm lại".
+
+Các kết nối mới cũng bị giới hạn. Trên clearnet, proxy ngược (reverse proxy) đặt trước máy chủ giới hạn số kết nối mà mỗi địa chỉ mạng có thể mở. Dịch vụ Tor được bảo vệ bởi cơ chế phòng vệ proof-of-work của Tor dành cho dịch vụ onion, khiến việc làm tràn ngập dịch vụ bằng kết nối trở nên tốn kém. Không cơ chế nào trong số này yêu cầu ứng dụng nullchat nhận hoặc lưu trữ địa chỉ IP của bạn.`,
   faq_16_title: "Tôi có thể truy cập nullchat qua Tor không?",
   faq_16_body_1: `nullchat có sẵn dưới dạng dịch vụ ẩn Tor cho người dùng ở các khu vực bị kiểm duyệt hoặc bất kỳ ai muốn thêm một lớp ẩn danh. Mở Tor Browser và truy cập:`,
   faq_16_body_2: `Theo mặc định, cả phiên bản clearnet và Tor đều kết nối với cùng một backend — người dùng trên cả hai có thể giao tiếp với nhau trong cùng phòng bằng cùng bí mật chung. Dịch vụ .onion định tuyến qua mạng Tor mà không có Cloudflare, không CDN, và không có cơ sở hạ tầng bên thứ ba nào giữa bạn và máy chủ. Tor định tuyến kết nối của bạn qua nhiều relay được mã hóa, nên cả máy chủ lẫn bất kỳ người quan sát nào đều không thể xác định địa chỉ IP thực hoặc vị trí của bạn. Dịch vụ .onion sử dụng HTTP thuần, điều này là bình thường và an toàn — bản thân Tor cung cấp mã hóa đầu cuối giữa trình duyệt và máy chủ của bạn. Tất cả mã hóa cấp ứng dụng tương tự (NaCl secretbox, dẫn xuất khóa Argon2id) được áp dụng bên trên. Lưu ý: Tor Browser phải được đặt ở mức bảo mật "Standard" để nullchat hoạt động, vì ứng dụng yêu cầu JavaScript.`,
@@ -88,11 +95,13 @@ Cả hai bên phải đồng ý bật nút chuyển — nó hoạt động giố
   faq_18_title: "Thời gian chờ không hoạt động là gì?",
   faq_18_body: `Nếu bạn không hoạt động trong 15 phút — không gõ, không chạm, không cuộn — nullchat sẽ tự động ngắt kết nối và đưa bạn trở lại màn hình nhập mật khẩu. Cảnh báo xuất hiện ở phút thứ 13 cho bạn tùy chọn ở lại. Điều này bảo vệ phiên của bạn nếu bạn rời khỏi thiết bị, ngăn tin nhắn bị tự hủy khi không ai đang đọc, và đảm bảo chat không bị hiển thị trên màn hình không có người trông coi.`,
   faq_19_title: "Còn về địa chỉ IP thì sao?",
-  faq_19_body: `Trên clearnet (nullchat.org), ứng dụng được lưu trữ trên mạng biên của Cloudflare. Địa chỉ IP của bạn được xử lý ở tầng cơ sở hạ tầng và không bao giờ được đọc, ghi nhật ký hoặc lưu trữ bởi mã ứng dụng. Mã máy chủ không truy cập header IP. Chúng tôi không có cơ chế để nhận dạng bạn bằng địa chỉ mạng.
+  faq_19_body: `Trên clearnet (nullchat.org), trang web được phục vụ bởi Vercel, và kết nối trò chuyện đi đến máy chủ của chúng tôi tại ws.nullchat.org thông qua một proxy ngược nginx. Như với mọi trang web, dịch vụ lưu trữ trang và proxy ngược tất yếu sẽ thấy địa chỉ IP mà bạn dùng để kết nối vào thời điểm bạn kết nối. nginx không chuyển địa chỉ của bạn đến ứng dụng nullchat và không ghi nhật ký địa chỉ đó, vì vậy ứng dụng không bao giờ nhận hoặc lưu trữ địa chỉ IP của máy khách. Nếu bạn không muốn dịch vụ lưu trữ trang hoặc máy chủ của chúng tôi thấy địa chỉ IP của bạn, hãy dùng Tor.
 
 Trên dịch vụ ẩn Tor (.onion), địa chỉ IP của bạn hoàn toàn không bao giờ hiển thị với máy chủ — định tuyến onion của Tor đảm bảo ẩn danh hoàn toàn ở cấp mạng. Máy chủ chỉ thấy các kết nối từ mạng Tor, không có cách nào truy ngược về bạn.`,
   faq_20_title: "Có cookie hoặc trình theo dõi nào không?",
-  faq_20_body: `Không. nullchat không đặt cookie, không sử dụng phân tích, không tải script bên thứ ba, không nhúng pixel theo dõi, và không thực hiện yêu cầu bên ngoài. Các header Content Security Policy thực thi điều này ở cấp trình duyệt. Bạn có thể xác minh điều này trong công cụ nhà phát triển của trình duyệt.`,
+  faq_20_body: `Không. nullchat không đặt cookie, không sử dụng phân tích, không tải script bên thứ ba, không nhúng pixel theo dõi, và không thực hiện yêu cầu bên ngoài. Các header Content Security Policy thực thi điều này ở cấp trình duyệt. Bạn có thể xác minh điều này trong công cụ nhà phát triển của trình duyệt.
+
+Lựa chọn ngôn ngữ của bạn chỉ được lưu trong sessionStorage cho tab hiện tại, và sẽ bị xóa khi bạn đóng tab.`,
   faq_21_title: "Tại sao tôi không thể gửi liên kết, hình ảnh hoặc tệp?",
   faq_21_body: `Theo thiết kế. nullchat chỉ hỗ trợ văn bản thuần — không thể gửi hoặc hiển thị liên kết, hình ảnh, tệp đính kèm hoặc phương tiện dưới bất kỳ hình thức nào. Đây là quyết định bảo mật có chủ đích, không phải giới hạn. Liên kết có thể nhấp và phương tiện nhúng là bề mặt tấn công chính cho các khai thác zero-day được sử dụng bởi phần mềm gián điệp thương mại như Pegasus, Predator và các công cụ giám sát tương tự. Một liên kết hoặc tệp độc hại duy nhất có thể âm thầm xâm nhập toàn bộ thiết bị. Bằng cách giới hạn chat chỉ còn văn bản thuần, nullchat loại bỏ hoàn toàn vectơ tấn công này. Không có gì để nhấp, không có gì để tải xuống, và không có gì để hiển thị — có nghĩa là không có gì để khai thác.`,
   faq_22_title: "Tôi có thể sao chép hoặc chụp màn hình tin nhắn không?",
@@ -100,7 +109,7 @@ Trên dịch vụ ẩn Tor (.onion), địa chỉ IP của bạn hoàn toàn kh�
 
 Đây là các biện pháp bảo vệ dựa trên ma sát, không phải đảm bảo tuyệt đối. Người dùng quyết tâm luôn có thể chụp ảnh màn hình bằng thiết bị khác hoặc sử dụng công cụ cấp hệ điều hành vượt qua giới hạn trình duyệt. Mục tiêu là làm cho việc chụp thông thường trở nên khó khăn và củng cố kỳ vọng rằng các cuộc trò chuyện trong nullchat không được dùng để lưu lại.`,
   faq_23_title: "Lưu lượng giả là gì?",
-  faq_23_body: `nullchat tự động gửi các tin nhắn giả được mã hóa theo khoảng thời gian ngẫu nhiên (mỗi 10–60 giây) khi bạn đang kết nối với một phòng. Các tin nhắn giả này không thể phân biệt với tin nhắn thật — chúng có cùng kích thước (nhờ đệm cố định), được mã hóa với cùng khóa, và được chuyển tiếp qua cùng đường dẫn máy chủ. Client của người nhận âm thầm loại bỏ chúng sau khi giải mã.
+  faq_23_body: `nullchat tự động gửi các tin nhắn giả được mã hóa theo khoảng thời gian ngẫu nhiên (mỗi 10–60 giây) khi bạn đang kết nối với một phòng. Các tin nhắn giả này không thể phân biệt với tin nhắn thật — chúng có cùng kích thước (nhờ đệm cố định), được mã hóa với cùng khóa, được chuyển tiếp qua cùng đường dẫn máy chủ, và tạo ra cùng một chuỗi khung dữ liệu (frame) giữa trình duyệt của bạn và máy chủ như một tin nhắn thật. Client của người nhận âm thầm loại bỏ chúng sau khi giải mã.
 
 Lưu lượng giả đánh bại phân tích lưu lượng. Nếu không có nó, người quan sát theo dõi lưu lượng mạng có thể xác định khi nào giao tiếp thực sự đang diễn ra dựa trên thời điểm các blob mã hóa được gửi. Với lưu lượng giả, có một dòng lưu lượng liên tục trông giống hệt nhau bất kể có ai đang thực sự gõ hay không — khiến việc phân biệt tin nhắn thật với nhiễu trở nên bất khả thi.`,
   faq_24_title: "Đệm kết nối là gì?",
