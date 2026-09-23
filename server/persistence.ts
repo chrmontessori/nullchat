@@ -13,6 +13,8 @@ interface PersistedRoom {
     expiresAt: number;
   }[];
   hasHadReply: boolean;
+  // SHA-256 of the room access proof; absent in state written before v3
+  verifier?: string | null;
 }
 
 /** Ensure data directory exists with restricted permissions (owner-only) */

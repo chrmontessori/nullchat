@@ -1,5 +1,5 @@
 import type { WebSocket } from "ws";
-import { randomUUID } from "crypto";
+import { randomUUID, createHash, timingSafeEqual } from "crypto";
 import { saveRoom, loadRoom, deleteRoom } from "./persistence";
 
 interface StoredMessage {
@@ -14,6 +14,11 @@ interface StoredMessage {
 interface Connection {
   id: string;
   ws: WebSocket;
+  // A connection joins the room only after presenting the room's access
+  // proof in a hello frame. Until then it sees and affects nothing.
+  authenticated: boolean;
+  token: string | null; // ephemeral session token, stable across reconnects
+  helloTimer: ReturnType<typeof setTimeout> | null;
 }
 
 const DEAD_DROP_TTL = 24 * 60 * 60 * 1000;
@@ -24,13 +29,25 @@ const RATE_LIMIT_MS = 1000;
 const MAX_BUFFER = 50;
 const MAX_PAYLOAD_SIZE = 22000; // 16384 padded plaintext + NaCl overhead + base64 ≈ 21.9KB
 const ROOM_IDLE_TTL = 5 * 60 * 1000; // garbage collect empty rooms after 5 min
+const HELLO_TIMEOUT = 10_000; // close connections that do not authenticate
+const MAX_COVER_TIMERS = 200; // outstanding cover-traffic burn/delete timers per room
+const MAX_ACK_IDS = 50;
+
+const TOKEN_RE = /^[0-9a-f-]{36}$/;
+const HEX64_RE = /^[0-9a-f]{64}$/;
+
+function sha256Hex(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
 
 export class ChatRoom {
   private messages: StoredMessage[] = [];
   private rateLimits = new Map<string, number>();
   private burnTimers = new Map<string, ReturnType<typeof setTimeout>>();
-  private connectionTokens = new Map<string, string>();
+  private coverTimers = new Set<ReturnType<typeof setTimeout>>();
   private connections = new Map<string, Connection>();
+  // SHA-256 of the access proof presented by the room's first member.
+  private verifier: string | null = null;
   private roomLastMessage = 0;
   private roomMessageCount = 0;
   private hasHadReply = false;
@@ -41,11 +58,15 @@ export class ChatRoom {
     public readonly roomId: string,
     private onEmpty: (roomId: string) => void
   ) {
-    // Hydrate from disk if persisted state exists
+    // Hydrate from the RAM-backed store if persisted state exists
     const persisted = loadRoom(roomId);
     if (persisted) {
       this.messages = persisted.messages;
       this.hasHadReply = persisted.hasHadReply;
+      this.verifier =
+        typeof persisted.verifier === "string" && HEX64_RE.test(persisted.verifier)
+          ? persisted.verifier
+          : null;
       // Restart burn timers for messages already marked as read
       const now = Date.now();
       for (const msg of this.messages) {
@@ -70,28 +91,32 @@ export class ChatRoom {
         saveRoom(this.roomId, {
           messages: this.messages,
           hasHadReply: this.hasHadReply,
+          verifier: this.verifier,
         });
       }
     }, 200);
   }
 
-  private getConnections(): Connection[] {
-    return [...this.connections.values()];
+  private members(): Connection[] {
+    return [...this.connections.values()].filter((c) => c.authenticated);
   }
 
+  private memberCount(): number {
+    let n = 0;
+    for (const c of this.connections.values()) if (c.authenticated) n++;
+    return n;
+  }
+
+  /** Send to every authenticated member of the room. */
   private broadcast(data: string) {
     const buf = Buffer.from(data);
-    for (const conn of this.getConnections()) {
+    for (const conn of this.members()) {
       if (conn.ws.readyState === 1) conn.ws.send(buf);
     }
   }
 
   private send(conn: Connection, data: string) {
     if (conn.ws.readyState === 1) conn.ws.send(Buffer.from(data));
-  }
-
-  private getSenderToken(connectionId: string): string {
-    return this.connectionTokens.get(connectionId) || connectionId;
   }
 
   private pruneExpired() {
@@ -151,9 +176,8 @@ export class ChatRoom {
   }
 
   private broadcastPresence() {
-    const count = this.connections.size;
     this.broadcast(
-      JSON.stringify({ type: "presence", othersHere: count > 1 })
+      JSON.stringify({ type: "presence", othersHere: this.memberCount() > 1 })
     );
   }
 
@@ -165,6 +189,7 @@ export class ChatRoom {
   private startIdleTimer() {
     if (this.connections.size > 0) return;
     if (this.messages.length > 0) return;
+    this.resetIdleTimer();
     this.idleTimer = setTimeout(() => {
       this.destroy();
       this.onEmpty(this.roomId);
@@ -174,8 +199,11 @@ export class ChatRoom {
   destroy() {
     for (const timer of this.burnTimers.values()) clearTimeout(timer);
     this.burnTimers.clear();
+    for (const timer of this.coverTimers) clearTimeout(timer);
+    this.coverTimers.clear();
     if (this.idleTimer) clearTimeout(this.idleTimer);
     if (this.persistTimer) clearTimeout(this.persistTimer);
+    this.verifier = null;
     deleteRoom(this.roomId);
   }
 
@@ -189,13 +217,46 @@ export class ChatRoom {
       return connId;
     }
 
-    const conn: Connection = { id: connId, ws };
+    const conn: Connection = { id: connId, ws, authenticated: false, token: null, helloTimer: null };
+    conn.helloTimer = setTimeout(() => {
+      conn.helloTimer = null;
+      if (!conn.authenticated) ws.close();
+    }, HELLO_TIMEOUT);
     this.connections.set(connId, conn);
+
+    return connId;
+  }
+
+  /** Check the access proof in a hello frame and admit the connection. */
+  private handleHello(conn: Connection, token: unknown, auth: unknown) {
+    if (
+      typeof token !== "string" || !TOKEN_RE.test(token) ||
+      typeof auth !== "string" || !HEX64_RE.test(auth)
+    ) {
+      conn.ws.close();
+      return;
+    }
+
+    const presented = sha256Hex(auth);
+    if (this.verifier === null) {
+      this.verifier = presented;
+    } else if (!timingSafeEqual(Buffer.from(presented, "hex"), Buffer.from(this.verifier, "hex"))) {
+      this.send(conn, JSON.stringify({ type: "error", code: "AUTH_FAILED" }));
+      conn.ws.close();
+      return;
+    }
+
+    if (conn.helloTimer) {
+      clearTimeout(conn.helloTimer);
+      conn.helloTimer = null;
+    }
+    conn.authenticated = true;
+    conn.token = token;
 
     this.pruneExpired();
 
     // If others are now here, start burn timers on all unread messages
-    if (this.connections.size > 1) {
+    if (this.memberCount() > 1) {
       for (const msg of this.messages) {
         if (msg.readAt === null) this.startBurnTimer(msg);
       }
@@ -213,31 +274,64 @@ export class ChatRoom {
     }));
     this.send(conn, JSON.stringify({ type: "history", messages: history }));
     this.broadcastPresence();
+  }
 
-    return connId;
+  /**
+   * Cover traffic: produce exactly the frames an accepted message would
+   * (message to every member including the sender, confirmed to the sender,
+   * then burn and deleted when others are present) without storing anything
+   * or touching TTL, dead-drop, or rate-limit state.
+   */
+  private relayCover(conn: Connection, payload: string) {
+    const now = Date.now();
+    const id = randomUUID();
+    const ttl = this.hasHadReply ? ACTIVE_TTL : DEAD_DROP_TTL;
+
+    this.broadcast(
+      JSON.stringify({ type: "message", payload, id, ts: now, expiresAt: now + ttl })
+    );
+    this.send(conn, JSON.stringify({ type: "confirmed", id }));
+
+    if (this.memberCount() > 1 && this.coverTimers.size < MAX_COVER_TIMERS) {
+      this.broadcast(JSON.stringify({ type: "burn", id, burnAt: Date.now() + BURN_TTL }));
+      const timer = setTimeout(() => {
+        this.coverTimers.delete(timer);
+        this.broadcast(JSON.stringify({ type: "deleted", ids: [id] }));
+      }, BURN_TTL);
+      this.coverTimers.add(timer);
+    }
   }
 
   onMessage(message: string, connId: string) {
     const conn = this.connections.get(connId);
     if (!conn) return;
 
-    let parsed: { type: string; payload?: string; ids?: string[]; token?: string };
+    let parsed: { type?: unknown; payload?: unknown; ids?: unknown; token?: unknown; auth?: unknown; c?: unknown };
     try {
       parsed = JSON.parse(message);
     } catch {
       return;
     }
+    if (!parsed || typeof parsed !== "object") return;
 
-    if (parsed.type === "identify" && parsed.token) {
-      this.connectionTokens.set(connId, parsed.token);
+    // Until a connection proves knowledge of the room secret, only hello counts
+    if (!conn.authenticated) {
+      if (parsed.type === "hello") this.handleHello(conn, parsed.token, parsed.auth);
       return;
     }
 
-    const senderToken = this.getSenderToken(connId);
+    const senderToken = conn.token as string;
 
-    if (parsed.type === "acknowledge" && parsed.ids && Array.isArray(parsed.ids)) {
+    if (parsed.type === "acknowledge") {
+      const ids = parsed.ids;
+      if (
+        !Array.isArray(ids) || ids.length > MAX_ACK_IDS ||
+        !ids.every((i) => typeof i === "string" && i.length <= 64)
+      ) {
+        return;
+      }
       for (const msg of this.messages) {
-        if (parsed.ids.includes(msg.id) && msg.readAt === null && msg.senderId !== senderToken) {
+        if (ids.includes(msg.id) && msg.readAt === null && msg.senderId !== senderToken) {
           this.startBurnTimer(msg);
         }
       }
@@ -271,26 +365,14 @@ export class ChatRoom {
       return;
     }
 
-    // Decoy traffic: relay to other clients but do NOT store, rate-limit, or
-    // affect TTL/dead-drop logic. Network observers still see identical frames.
-    if (parsed.type === "decoy" && parsed.payload) {
-      if (parsed.payload.length > MAX_PAYLOAD_SIZE) return;
-      for (const c of this.getConnections()) {
-        if (c.id !== connId && c.ws.readyState === 1) {
-          c.ws.send(Buffer.from(JSON.stringify({
-            type: "message",
-            payload: parsed.payload,
-            id: randomUUID(),
-            ts: Date.now(),
-            expiresAt: Date.now() + 60000, // short expiry, client discards via nop
-          })));
-        }
-      }
+    if (parsed.type !== "message" || typeof parsed.payload !== "string" || !parsed.payload) return;
+    if (parsed.payload.length > MAX_PAYLOAD_SIZE) return;
+
+    if (parsed.c === 1) {
+      this.relayCover(conn, parsed.payload);
       return;
     }
-
-    if (parsed.type !== "message" || !parsed.payload) return;
-    if (parsed.payload.length > MAX_PAYLOAD_SIZE) return;
+    if (parsed.c !== 0) return;
 
     const now = Date.now();
 
@@ -362,7 +444,7 @@ export class ChatRoom {
 
     this.send(conn, JSON.stringify({ type: "confirmed", id }));
 
-    if (this.connections.size > 1) {
+    if (this.memberCount() > 1) {
       this.startBurnTimer(storedMsg);
     }
 
@@ -370,10 +452,11 @@ export class ChatRoom {
   }
 
   onClose(connId: string) {
-    this.connectionTokens.delete(connId);
+    const conn = this.connections.get(connId);
+    if (conn?.helloTimer) clearTimeout(conn.helloTimer);
     this.rateLimits.delete(connId);
     this.connections.delete(connId);
-    this.broadcastPresence();
+    if (conn?.authenticated) this.broadcastPresence();
     this.startIdleTimer();
   }
 }

@@ -4,3 +4,11 @@
 DataDirectory /var/lib/tor
 HiddenServiceDir /var/lib/tor/nullchat/
 HiddenServicePort 80 127.0.0.1:3000
+# Ask clients for a proof-of-work puzzle when the service is under load (Tor 0.4.8+)
+HiddenServicePoWDefensesEnabled 1
+# Rate-limit introduction requests at the introduction points
+HiddenServiceEnableIntroDoSDefense 1
+# Cap concurrent streams per rendezvous circuit
+HiddenServiceMaxStreams 20
+# Close circuits that exceed the stream cap instead of just refusing the stream
+HiddenServiceMaxStreamsCloseCircuit 1

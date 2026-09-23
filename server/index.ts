@@ -1,14 +1,25 @@
 import { createServer, IncomingMessage, ServerResponse } from "http";
 import { readFileSync, existsSync, statSync } from "fs";
 import { randomBytes } from "crypto";
-import { join, extname } from "path";
+import { resolve, extname, sep } from "path";
 import { WebSocketServer, WebSocket } from "ws";
 import { ChatRoom } from "./room";
 import { initStorage, purgeExpiredRooms } from "./persistence";
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
-const STATIC_DIR = join(__dirname, "..", "..", "out");
+const STATIC_DIR = resolve(__dirname, "..", "..", "out");
 const TOR_ONLY = process.env.TOR_ONLY === "1";
+
+// Global resource ceilings. Per-address limits for clearnet live in nginx and
+// the onion service is protected by Tor's proof-of-work defenses; this process
+// never learns client addresses, so it only bounds total load.
+const MAX_TOTAL_CONNECTIONS = 5000;
+const MAX_ROOMS = 20000;
+const MAX_FRAME_BYTES = 64 * 1024;
+
+// Room IDs are 32-byte Argon2id outputs in lowercase hex, optionally
+// namespaced for Tor-isolated rooms.
+const WS_PATH_RE = /^\/ws\/((?:tor-)?[0-9a-f]{64})$/;
 
 // MIME types for static serving
 const MIME: Record<string, string> = {
@@ -40,8 +51,7 @@ const STATIC_HEADERS: Record<string, string> = {
 };
 
 // Only reflect a Host value into the CSP if it is a plain hostname or
-// hostname:port. Anything else (stray characters that could break out of
-// the connect-src directive) falls back to the known onion host.
+// hostname:port. Anything else falls back to the known onion host.
 function safeWsHost(rawHost: string): string {
   const host = rawHost.toLowerCase();
   return /^[a-z0-9.-]+(:\d+)?$/.test(host) ? host : ONION_HOST;
@@ -72,60 +82,86 @@ function setSecurityHeaders(req: IncomingMessage, res: ServerResponse) {
 }
 
 // Treat a request as arriving over Tor only when its Host matches this
-// service's exact onion address, not any string ending in ".onion". This
-// closes the trivial forgery where a client sends "Host: anything.onion"
-// to reach a tor- room. Note: true network-level Tor-only isolation should
-// run the onion service on a dedicated instance with TOR_ONLY=1, since the
-// Host header is the only signal available at the application layer.
+// service's exact onion address. nginx always forwards clearnet requests with
+// a fixed Host of ws.nullchat.org, so clearnet traffic never matches.
 function isTorConnection(req: IncomingMessage): boolean {
   const host = (req.headers.host || "").toLowerCase().split(":")[0];
   return host === ONION_HOST;
 }
 
+function sendPlain(res: ServerResponse, status: number, body: string, extra: Record<string, string> = {}) {
+  res.writeHead(status, { "Content-Type": "text/plain", ...extra });
+  res.end(body);
+}
+
+/** Resolve a request path to a file inside STATIC_DIR, or null if it falls outside. */
+function resolveStatic(relPath: string): string | null {
+  const full = resolve(STATIC_DIR, "." + (relPath.startsWith("/") ? relPath : "/" + relPath));
+  if (full !== STATIC_DIR && !full.startsWith(STATIC_DIR + sep)) return null;
+  return full;
+}
+
+function sendFile(req: IncomingMessage, res: ServerResponse, filePath: string) {
+  const mime = MIME[extname(filePath)] || "application/octet-stream";
+  res.writeHead(200, { "Content-Type": mime });
+  res.end(req.method === "HEAD" ? undefined : readFileSync(filePath));
+}
+
 function serveStatic(req: IncomingMessage, res: ServerResponse) {
   // Tor-only mode: reject non-.onion requests
   if (TOR_ONLY && !isTorConnection(req)) {
-    res.writeHead(403, { "Content-Type": "text/plain" });
-    res.end("Forbidden: Tor access only");
+    sendPlain(res, 403, "Forbidden: Tor access only");
     return;
   }
 
   setSecurityHeaders(req, res);
 
-  let urlPath = req.url?.split("?")[0] || "/";
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    sendPlain(res, 405, "Method Not Allowed", { Allow: "GET, HEAD" });
+    return;
+  }
+
+  let urlPath: string;
+  try {
+    urlPath = decodeURIComponent((req.url || "/").split("?")[0]);
+  } catch {
+    sendPlain(res, 400, "Bad Request");
+    return;
+  }
+  if (urlPath.includes("\0")) {
+    sendPlain(res, 400, "Bad Request");
+    return;
+  }
   if (urlPath.endsWith("/")) urlPath += "index.html";
 
-  // Try exact file, then with .html, then directory/index.html
-  const candidates = [
-    join(STATIC_DIR, urlPath),
-    join(STATIC_DIR, urlPath + ".html"),
-    join(STATIC_DIR, urlPath, "index.html"),
-  ];
-
-  for (const filePath of candidates) {
+  // Try exact file, then with .html, then directory/index.html. Every
+  // candidate must resolve inside STATIC_DIR.
+  const candidates = [urlPath, urlPath + ".html", urlPath + "/index.html"];
+  for (const candidate of candidates) {
+    const filePath = resolveStatic(candidate);
+    if (filePath === null) {
+      sendPlain(res, 404, "Not Found");
+      return;
+    }
     if (existsSync(filePath) && statSync(filePath).isFile()) {
-      const ext = extname(filePath);
-      const mime = MIME[ext] || "application/octet-stream";
-      res.writeHead(200, { "Content-Type": mime });
-      res.end(readFileSync(filePath));
+      sendFile(req, res, filePath);
       return;
     }
   }
 
   // SPA fallback — serve index.html for client-side routes
-  const indexPath = join(STATIC_DIR, "index.html");
+  const indexPath = resolve(STATIC_DIR, "index.html");
   if (existsSync(indexPath)) {
-    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-    res.end(readFileSync(indexPath));
+    sendFile(req, res, indexPath);
     return;
   }
 
-  res.writeHead(404, { "Content-Type": "text/plain" });
-  res.end("Not Found");
+  sendPlain(res, 404, "Not Found");
 }
 
 // --- Room manager ---
 const rooms = new Map<string, ChatRoom>();
+let totalConnections = 0;
 
 function getOrCreateRoom(roomId: string): ChatRoom {
   let room = rooms.get(roomId);
@@ -139,64 +175,20 @@ function getOrCreateRoom(roomId: string): ChatRoom {
 // --- HTTP + WebSocket server ---
 const httpServer = createServer(serveStatic);
 
-const wss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
-
-// Per-IP rate limiting for WebSocket upgrades (max 5 connections per minute)
-const upgradeAttempts = new Map<string, number[]>();
-const WS_UPGRADE_LIMIT = 5;
-const WS_UPGRADE_WINDOW = 60_000; // 1 minute
-
-// Identify the client for rate limiting without trusting attacker-supplied
-// headers. A client can prepend its own X-Forwarded-For, so the leftmost
-// value is spoofable and lets an attacker rotate the key to bypass the cap.
-// Prefer X-Real-IP (set by the reverse proxy), then the rightmost XFF entry
-// (the one the proxy appended), then the socket address.
-function clientKey(req: IncomingMessage): string {
-  const realIp = req.headers["x-real-ip"]?.toString().trim();
-  if (realIp) return realIp;
-  const fwd = req.headers["x-forwarded-for"]?.toString();
-  if (fwd) {
-    const parts = fwd.split(",").map((s) => s.trim()).filter(Boolean);
-    if (parts.length) return parts[parts.length - 1];
-  }
-  return req.socket.remoteAddress || "unknown";
-}
-
-function isUpgradeRateLimited(req: IncomingMessage): boolean {
-  const key = clientKey(req);
-  const now = Date.now();
-  const attempts = (upgradeAttempts.get(key) || []).filter((t) => now - t < WS_UPGRADE_WINDOW);
-  if (attempts.length >= WS_UPGRADE_LIMIT) return true;
-  attempts.push(now);
-  upgradeAttempts.set(key, attempts);
-  return false;
-}
-
-// Periodically clean up stale entries
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, attempts] of upgradeAttempts) {
-    const valid = attempts.filter((t) => now - t < WS_UPGRADE_WINDOW);
-    if (valid.length === 0) upgradeAttempts.delete(key);
-    else upgradeAttempts.set(key, valid);
-  }
-}, 60_000);
+const wss = new WebSocketServer({
+  noServer: true,
+  perMessageDeflate: false,
+  maxPayload: MAX_FRAME_BYTES,
+});
 
 httpServer.on("upgrade", (req, socket, head) => {
-  // Rate limit WebSocket upgrades to prevent connection flooding
-  if (isUpgradeRateLimited(req)) {
-    socket.destroy();
-    return;
-  }
-
   // Tor-only mode: reject non-.onion WebSocket upgrades
   if (TOR_ONLY && !isTorConnection(req)) {
     socket.destroy();
     return;
   }
 
-  const url = req.url || "";
-  const match = url.match(/^\/ws\/([a-zA-Z0-9_-]+)/);
+  const match = (req.url || "").split("?")[0].match(WS_PATH_RE);
   if (!match) {
     socket.destroy();
     return;
@@ -204,13 +196,20 @@ httpServer.on("upgrade", (req, socket, head) => {
 
   const roomId = match[1];
 
-  // Proof of Tor: reject clearnet connections to Tor-only rooms
+  // Tor-isolated rooms accept only connections arriving over the onion service
   if (roomId.startsWith("tor-") && !isTorConnection(req)) {
     socket.destroy();
     return;
   }
 
+  // Global capacity ceilings
+  if (totalConnections >= MAX_TOTAL_CONNECTIONS || (!rooms.has(roomId) && rooms.size >= MAX_ROOMS)) {
+    socket.destroy();
+    return;
+  }
+
   wss.handleUpgrade(req, socket, head, (ws) => {
+    totalConnections++;
     const room = getOrCreateRoom(roomId);
     const connId = room.onConnect(ws);
 
@@ -231,6 +230,15 @@ httpServer.on("upgrade", (req, socket, head) => {
     };
     let paddingTimer = schedulePadding();
 
+    let closed = false;
+    const cleanup = () => {
+      if (closed) return;
+      closed = true;
+      totalConnections--;
+      clearTimeout(paddingTimer);
+      room.onClose(connId);
+    };
+
     ws.on("message", (data, isBinary) => {
       // Accept both binary and text frames for compatibility
       const str = isBinary
@@ -241,15 +249,8 @@ httpServer.on("upgrade", (req, socket, head) => {
       room.onMessage(str, connId);
     });
 
-    ws.on("close", () => {
-      clearTimeout(paddingTimer);
-      room.onClose(connId);
-    });
-
-    ws.on("error", () => {
-      clearTimeout(paddingTimer);
-      room.onClose(connId);
-    });
+    ws.on("close", cleanup);
+    ws.on("error", cleanup);
   });
 });
 

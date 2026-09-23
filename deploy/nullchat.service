@@ -22,9 +22,9 @@ Environment=NULLCHAT_DATA_DIR=/run/nullchat/rooms
 # Environment=TOR_ONLY=1
 
 # --- Memory-only tmpfs working directory ---
-# /tmp is already a private tmpfs thanks to PrivateTmp; the working
+# /tmp is a private tmpfs (PrivateTmp + TemporaryFileSystem); the working
 # directory lives entirely in RAM — nothing touches disk.
-PrivateTmp=strict
+PrivateTmp=yes
 
 Restart=always
 RestartSec=2
