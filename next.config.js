@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   ...(process.env.STATIC_EXPORT === "1" ? { output: "export" } : {}),
+  // Fixed build ID derived from the package version, so identical
+  // source produces identical build output
+  generateBuildId: async () => "nullchat-" + require("./package.json").version,
   turbopack: {},
   async headers() {
     return [

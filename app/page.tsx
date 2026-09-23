@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import PasswordEntry from "@/components/PasswordEntry";
 import ChatRoom from "@/components/ChatRoom";
 import { deriveRoomId } from "@/lib/room";
-import { deriveKey } from "@/lib/crypto";
+import { deriveKeys } from "@/lib/crypto";
 import { useI18n } from "@/lib/i18n/context";
 
 function ConnectingScreen({ onReady }: { onReady: () => void }) {
@@ -78,6 +78,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const roomIdRef = useRef("");
   const keyRef = useRef<Uint8Array | null>(null);
+  const authRef = useRef("");
   const torIsolatedRef = useRef(false);
   const [, setTick] = useState(0);
 
@@ -87,12 +88,13 @@ export default function Home() {
     try {
       // Sequential: avoid allocating 2x16 MiB simultaneously
       const id = await deriveRoomId(password);
-      const key = await deriveKey(password);
+      const { encKey, auth } = await deriveKeys(password);
       // Tor-isolated rooms use a separate namespace so only other
       // Tor users with the toggle enabled land in the same room
       roomIdRef.current = torIsolated ? `tor-${id}` : id;
       torIsolatedRef.current = torIsolated;
-      keyRef.current = key;
+      keyRef.current = encKey;
+      authRef.current = auth;
       setPhase("connecting");
     } catch (err) {
       console.error("Key derivation failed:", err);
@@ -107,7 +109,9 @@ export default function Home() {
 
   const handleLeave = useCallback(() => {
     roomIdRef.current = "";
+    keyRef.current?.fill(0);
     keyRef.current = null;
+    authRef.current = "";
     setPhase("entry");
     setLoading(false);
   }, []);
@@ -121,6 +125,7 @@ export default function Home() {
       <ChatRoom
         roomId={roomIdRef.current}
         encryptionKey={keyRef.current}
+        auth={authRef.current}
         torIsolated={torIsolatedRef.current}
         onLeave={handleLeave}
       />

@@ -1,19 +1,21 @@
+import { ARGON2_PARAMS } from "./crypto";
+
 /**
- * Derive room ID using Argon2id with a fixed domain-separation salt
- * so the room ID cannot be used to crack the encryption key (which
- * uses a different salt). Both derivations use Argon2id to ensure
- * brute-force resistance on both paths.
+ * Derive the room ID: lowercase hex of Argon2id(secret, salt
+ * "nullchat-room-id-v3", 32 bytes), i.e. 64 hex characters.
+ *
+ * The salt differs from the key-derivation salt, so the room ID the
+ * server sees cannot be used to recover the encryption key. Both paths
+ * use Argon2id, so guessing the secret from the room ID is as costly
+ * as guessing it from the key.
  */
-export async function deriveRoomId(password: string): Promise<string> {
+export async function deriveRoomId(secret: string): Promise<string> {
   const { argon2id } = await import("hash-wasm");
-  const salt = new TextEncoder().encode("nullchat-room-id-v2");
   return argon2id({
-    password,
-    salt,
-    iterations: 3,
-    memorySize: 16384, // 16 MiB — compatible with Tor Browser
+    password: secret,
+    salt: new TextEncoder().encode("nullchat-room-id-v3"),
+    ...ARGON2_PARAMS,
     hashLength: 32,
-    parallelism: 1,
     outputType: "hex",
   });
 }

@@ -1,18 +1,24 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import PartySocket from "partysocket";
 import {
   encrypt,
-  decrypt,
+  openEnvelope,
+  createEnvelope,
   generateAlias,
-  roundTimestamp,
-  type MessageEnvelope,
 } from "@/lib/crypto";
-import type { ServerEvent } from "@/lib/protocol";
+import type { ClientEvent, ServerEvent } from "@/lib/protocol";
 import { useI18n } from "@/lib/i18n/context";
+import type { TranslationKey } from "@/lib/i18n/translations";
 
 const WS_MODE = process.env.NEXT_PUBLIC_WS_MODE || "partykit";
+
+// Delay before reconnecting after the socket closes
+const RECONNECT_DELAY_MS = 1500;
+
+// Cover messages go out at random intervals of 10 to 60 seconds.
+const COVER_MIN_MS = 10000;
+const COVER_SPREAD_MS = 50000;
 
 function generateUUID(): string {
   const bytes = new Uint8Array(16);
@@ -35,13 +41,14 @@ function createSocket(roomId: string): WebSocket {
 }
 
 /** Send JSON as a binary WebSocket frame (ArrayBuffer) */
-function wsSendJSON(ws: WebSocket, obj: unknown) {
+function wsSendJSON(ws: WebSocket, obj: ClientEvent) {
   ws.send(new TextEncoder().encode(JSON.stringify(obj)));
 }
 
 interface Props {
   roomId: string;
   encryptionKey: Uint8Array;
+  auth: string; // room auth value sent in the hello frame
   torIsolated: boolean;
   onLeave: () => void;
 }
@@ -216,13 +223,14 @@ function timeAgo(ts: number): string {
   return "1d+";
 }
 
-export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }: Props) {
+export default function ChatRoom({ roomId, encryptionKey, auth, torIsolated, onLeave }: Props) {
   const { t } = useI18n();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [othersHere, setOthersHere] = useState(false);
+  // true once the server has accepted auth and sent history
   const [connected, setConnected] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<TranslationKey | null>(null);
   const [showTerminate, setShowTerminate] = useState(false);
   const [deadDropAcked, setDeadDropAcked] = useState(false);
   const [historyLoaded, setHistoryLoaded] = useState(false);
@@ -230,9 +238,28 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
   const sessionTokenRef = useRef(generateUUID());
   const wsRef = useRef<WebSocket | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  // Server message ids already shown
   const seenRef = useRef(new Set<string>());
+  // Envelope ids received this session; kept across reconnects
+  const seenEnvelopeIdsRef = useRef(new Set<string>());
+  // Envelope ids of messages this client sent; decides `mine`
+  const sentEnvelopeIdsRef = useRef(new Set<string>());
+  // Set on leave, terminate, panic, inactivity timeout and AUTH_FAILED;
+  // once set, the socket is never reopened
+  const stoppedRef = useRef(false);
+  // Mirrors `messages` synchronously so socket handlers can check which
+  // ids the client holds
+  const messagesRef = useRef<ChatMessage[]>([]);
   const keyRef = useRef(encryptionKey);
   keyRef.current = encryptionKey;
+
+  const updateMessages = useCallback((fn: (prev: ChatMessage[]) => ChatMessage[]) => {
+    const next = fn(messagesRef.current);
+    if (next === messagesRef.current) return;
+    messagesRef.current = next;
+    setMessages(next);
+  }, []);
+
   const [stegoMode, setStegoMode] = useState(false);
   const [stegoDocName, setStegoDocName] = useState(() => {
     const d = new Date();
@@ -259,7 +286,9 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
     }, INACTIVITY_WARNING);
 
     inactivityTimerRef.current = setTimeout(() => {
+      stoppedRef.current = true;
       wsRef.current?.close();
+      keyRef.current.fill(0);
       onLeave();
     }, INACTIVITY_TIMEOUT);
   }, [onLeave]);
@@ -308,6 +337,7 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
 
     const doPanic = () => {
       panicked = true;
+      stoppedRef.current = true;
       // Terminate session server-side
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         wsSendJSON(wsRef.current, { type: "terminate" });
@@ -403,14 +433,14 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
   // Client-side cleanup: remove messages whose burn timer has expired
   useEffect(() => {
     const interval = setInterval(() => {
-      setMessages((prev) => {
+      updateMessages((prev) => {
         const now = Date.now();
         const filtered = prev.filter((m) => m.burnAt === null || m.burnAt > now);
         return filtered.length === prev.length ? prev : filtered;
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [updateMessages]);
 
   // Sync browser tab title with stego document name
   useEffect(() => {
@@ -430,127 +460,184 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
   }, [scrollDown]);
 
   useEffect(() => {
-    const alias = aliasRef.current;
     const key = keyRef.current;
-    let intentionalClose = false;
+    const seenServerIds = seenRef.current;
+    const seenEnvelopeIds = seenEnvelopeIdsRef.current;
+    const sentEnvelopeIds = sentEnvelopeIdsRef.current;
+    let disposed = false;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-    let decoyTimer: ReturnType<typeof setTimeout> | null = null;
+    let coverTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const mayConnect = () => !disposed && !stoppedRef.current;
+
+    const clearCover = () => {
+      if (coverTimer) clearTimeout(coverTimer);
+      coverTimer = null;
+    };
+
+    const clearReconnect = () => {
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    };
+
+    function scheduleReconnect() {
+      if (!mayConnect() || reconnectTimer) return;
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        connect();
+      }, RECONNECT_DELAY_MS);
+    }
+
+    // Decrypt and validate one server message. Returns null for server
+    // ids already shown and for envelopes openEnvelope rejects (cover
+    // traffic, wrong version, repeated envelope id, stale or future ts,
+    // or a payload that does not decrypt).
+    function accept(
+      id: unknown,
+      payload: unknown,
+      burnAt: number | null,
+      expiresAt: number
+    ): ChatMessage | null {
+      if (typeof id !== "string" || typeof payload !== "string") return null;
+      if (seenServerIds.has(id)) return null;
+      const env = openEnvelope(payload, key, seenEnvelopeIds);
+      if (!env) return null;
+      seenServerIds.add(id);
+      return {
+        id,
+        alias: env.alias,
+        text: env.text,
+        ts: env.ts,
+        mine: sentEnvelopeIds.has(env.id),
+        burnAt,
+        expiresAt,
+      };
+    }
+
+    function scheduleCover(ws: WebSocket) {
+      clearCover();
+      const delay = COVER_MIN_MS + Math.floor(Math.random() * COVER_SPREAD_MS);
+      coverTimer = setTimeout(() => {
+        coverTimer = null;
+        if (wsRef.current !== ws || ws.readyState !== WebSocket.OPEN) return;
+        // Same envelope shape, encryption and fixed padding as a real
+        // message; receivers drop it after decryption because nop is set
+        const envelope = createEnvelope(aliasRef.current, "", { nop: true });
+        wsSendJSON(ws, { type: "message", payload: encrypt(envelope, key), c: 1 });
+        scheduleCover(ws);
+      }, delay);
+    }
+
+    function handleFrame(ws: WebSocket, data: ServerEvent) {
+      switch (data.type) {
+        case "history": {
+          // Sent only after the server accepts auth
+          const incoming: ChatMessage[] = [];
+          for (const msg of Array.isArray(data.messages) ? data.messages : []) {
+            const m = accept(msg.id, msg.payload, msg.burnAt ?? null, msg.expiresAt);
+            if (m) incoming.push(m);
+          }
+          if (incoming.length) updateMessages((prev) => [...prev, ...incoming]);
+          setHistoryLoaded(true);
+          setConnected(true);
+          setError(null);
+          scheduleCover(ws);
+          break;
+        }
+        case "message": {
+          const m = accept(data.id, data.payload, null, data.expiresAt);
+          if (m) updateMessages((prev) => [...prev, m]);
+          break;
+        }
+        case "presence":
+          setOthersHere(Boolean(data.othersHere));
+          break;
+        case "burn": {
+          // Only a burn for a message this client holds changes state
+          if (!messagesRef.current.some((m) => m.id === data.id)) break;
+          setDeadDropAcked(true);
+          updateMessages((prev) =>
+            prev.map((m) => (m.id === data.id ? { ...m, burnAt: data.burnAt } : m))
+          );
+          break;
+        }
+        case "deleted": {
+          if (!Array.isArray(data.ids)) break;
+          const ids = new Set(data.ids);
+          if (!messagesRef.current.some((m) => ids.has(m.id))) break;
+          updateMessages((prev) => prev.filter((m) => !ids.has(m.id)));
+          break;
+        }
+        case "confirmed":
+          // No client state depends on delivery confirmation
+          break;
+        case "error":
+          if (data.code === "AUTH_FAILED") {
+            // The room is bound to a different secret: stop for good
+            stoppedRef.current = true;
+            clearReconnect();
+            clearCover();
+            setConnected(false);
+            ws.close();
+            keyRef.current.fill(0);
+            onLeave();
+          } else if (data.code === "RATE_LIMITED") {
+            setError("slow_down");
+            setTimeout(() => setError(null), 2000);
+          } else if (data.code === "ROOM_FULL") {
+            setError("room_full");
+          }
+          break;
+      }
+    }
 
     function connect() {
-      const ws = createSocket(roomId);
+      if (!mayConnect()) return;
+      let ws: WebSocket;
+      try {
+        ws = createSocket(roomId);
+      } catch {
+        scheduleReconnect();
+        return;
+      }
       ws.binaryType = "arraybuffer";
       wsRef.current = ws;
 
       ws.addEventListener("open", () => {
-        wsSendJSON(ws, { type: "identify", token: sessionTokenRef.current });
-        setConnected(true);
-        setError(null);
-        scheduleDecoy(ws);
+        if (wsRef.current !== ws) return;
+        // First frame: session token plus room auth value
+        wsSendJSON(ws, { type: "hello", token: sessionTokenRef.current, auth });
       });
 
       ws.addEventListener("close", () => {
+        // A socket that has been replaced by a newer one leaves state alone
+        if (wsRef.current !== ws) return;
+        clearCover();
         setConnected(false);
-        if (!intentionalClose) {
-          // Reconnect after a short delay
-          reconnectTimer = setTimeout(connect, 1500);
-        }
+        scheduleReconnect();
       });
 
-      ws.addEventListener("message", (event: MessageEvent | Event) => {
-        let data: ServerEvent;
-        if (!("data" in event)) return;
+      ws.addEventListener("message", (event: MessageEvent) => {
+        if (wsRef.current !== ws) return;
         const raw = event.data;
         const str = raw instanceof ArrayBuffer
           ? new TextDecoder().decode(raw)
           : typeof raw === "string" ? raw : null;
         if (!str) return;
+        let data: ServerEvent;
         try { data = JSON.parse(str); } catch { return; }
-
-        if (data.type === "presence") {
-          setOthersHere(data.othersHere);
-        } else if (data.type === "error") {
-          if (data.code === "RATE_LIMITED") {
-            setError(t("slow_down"));
-            setTimeout(() => setError(null), 2000);
-          } else if (data.code === "ROOM_FULL") {
-            setError(t("room_full"));
-          }
-        } else if (data.type === "deleted") {
-          setMessages((prev) => prev.filter((m) => !data.ids.includes(m.id)));
-        } else if (data.type === "burn") {
-          setDeadDropAcked(true);
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === data.id ? { ...m, burnAt: data.burnAt } : m
-            )
-          );
-        } else if (data.type === "history") {
-          const dec: ChatMessage[] = [];
-          for (const msg of data.messages) {
-            if (seenRef.current.has(msg.id)) continue;
-            const env = decrypt(msg.payload, key);
-            if (env) {
-              seenRef.current.add(msg.id);
-              dec.push({
-                id: msg.id,
-                alias: env.alias,
-                text: env.text,
-                ts: env.ts,
-                mine: env.alias === alias,
-                burnAt: msg.burnAt,
-                expiresAt: msg.expiresAt,
-              });
-            }
-          }
-          if (dec.length) setMessages((prev) => [...prev, ...dec]);
-          setHistoryLoaded(true);
-        } else if (data.type === "message") {
-          if (seenRef.current.has(data.id)) return;
-          const env = decrypt(data.payload, key);
-          if (env) {
-            seenRef.current.add(data.id);
-            setMessages((prev) => [...prev, {
-              id: data.id,
-              alias: env.alias,
-              text: env.text,
-              ts: env.ts,
-              mine: env.alias === alias,
-              burnAt: null,
-              expiresAt: data.expiresAt,
-            }]);
-          }
-        }
+        if (!data || typeof data !== "object") return;
+        handleFrame(ws, data);
       });
-    }
-
-    function scheduleDecoy(ws: WebSocket) {
-      if (decoyTimer) clearTimeout(decoyTimer);
-      const delay = 10000 + Math.floor(Math.random() * 50000); // 10–60s
-      decoyTimer = setTimeout(() => {
-        if (ws.readyState === WebSocket.OPEN) {
-          const decoy: MessageEnvelope = {
-            alias: aliasRef.current,
-            text: "",
-            ts: roundTimestamp(Date.now()),
-            nop: true,
-          };
-          const payload = encrypt(decoy, keyRef.current);
-          wsSendJSON(ws, { type: "decoy", payload });
-        }
-        if (wsRef.current === ws && ws.readyState === WebSocket.OPEN) {
-          scheduleDecoy(ws);
-        }
-      }, delay);
     }
 
     // Reconnect immediately when the tab becomes visible again
     const onVisibility = () => {
-      if (document.visibilityState === "visible") {
-        const ws = wsRef.current;
-        if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
-          if (reconnectTimer) clearTimeout(reconnectTimer);
-          connect();
-        }
+      if (document.visibilityState !== "visible" || !mayConnect()) return;
+      const ws = wsRef.current;
+      if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+        clearReconnect();
+        connect();
       }
     };
     document.addEventListener("visibilitychange", onVisibility);
@@ -558,51 +645,64 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
     connect();
 
     return () => {
-      intentionalClose = true;
+      disposed = true;
       document.removeEventListener("visibilitychange", onVisibility);
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      if (decoyTimer) clearTimeout(decoyTimer);
+      clearReconnect();
+      clearCover();
       wsRef.current?.close();
-      seenRef.current.clear();
+      seenServerIds.clear();
+      seenEnvelopeIds.clear();
+      sentEnvelopeIds.clear();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomId]);
+  }, [roomId, auth, updateMessages]);
 
   const send = () => {
     const text = input.trim();
-    if (!text || !wsRef.current || text.length > MAX_MESSAGE_LENGTH) return;
-    const envelope: MessageEnvelope = { alias: aliasRef.current, text, ts: roundTimestamp(Date.now()) };
+    if (!text || text.length > MAX_MESSAGE_LENGTH) return;
+    // Keep the text in the input until the server has accepted auth
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN || !connected) return;
+    const envelope = createEnvelope(aliasRef.current, text);
     let payload: string;
     try {
-      payload = encrypt(envelope, encryptionKey);
+      payload = encrypt(envelope, keyRef.current);
     } catch {
       // The 16 KiB fixed frame holds any 4096-char message of normal
       // text; this only fires on pathological input (thousands of
       // control chars that JSON-escape to 6 bytes each). Keep the input
       // intact and show the rate-limit style notice rather than throwing
       // out of the event handler and dropping the message silently.
-      setError(t("slow_down"));
+      setError("slow_down");
       setTimeout(() => setError(null), 2000);
       return;
     }
-    wsSendJSON(wsRef.current, { type: "message", payload });
+    sentEnvelopeIdsRef.current.add(envelope.id);
+    wsSendJSON(ws, { type: "message", payload, c: 0 });
     setInput("");
     setDeadDropAcked(true);
   };
 
   const acknowledge = (ids: string[]) => {
-    if (!wsRef.current || ids.length === 0) return;
-    wsSendJSON(wsRef.current, { type: "acknowledge", ids });
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN || ids.length === 0) return;
+    wsSendJSON(ws, { type: "acknowledge", ids });
     setDeadDropAcked(true);
   };
 
   // Zero-fill encryption key to minimize time it remains in memory
   const wipeKey = () => { keyRef.current.fill(0); };
 
-  const leave = () => { wsRef.current?.close(); wipeKey(); onLeave(); };
+  const leave = () => {
+    stoppedRef.current = true;
+    wsRef.current?.close();
+    wipeKey();
+    onLeave();
+  };
 
   const terminate = () => {
-    if (wsRef.current) wsSendJSON(wsRef.current, { type: "terminate" });
+    stoppedRef.current = true;
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) wsSendJSON(ws, { type: "terminate" });
     setShowTerminate(false);
     wipeKey();
     onLeave();
@@ -1037,7 +1137,7 @@ export default function ChatRoom({ roomId, encryptionKey, torIsolated, onLeave }
       {/* ── Error ── */}
       {error && (
         <div style={{ textAlign: "center", padding: "8px 16px", fontSize: 14, color: "#ff453a", flexShrink: 0 }}>
-          {error}
+          {t(error)}
         </div>
       )}
 

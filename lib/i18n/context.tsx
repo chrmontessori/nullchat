@@ -11,6 +11,7 @@ interface I18nContextType {
 }
 
 const RTL_LANGUAGES: Language[] = ["ar", "fa", "ur"];
+const LANG_STORAGE_KEY = "nullchat-lang";
 
 const I18nContext = createContext<I18nContextType>({
   lang: "en",
@@ -22,23 +23,28 @@ const I18nContext = createContext<I18nContextType>({
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<Language>("en");
 
-  // Load saved language on mount
+  // Load the language chosen earlier in this tab's session. The
+  // preference lives in sessionStorage only, so it is gone once the tab
+  // closes; any copy under the same key in localStorage is removed.
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("nullchat-lang") as Language | null;
+      localStorage.removeItem(LANG_STORAGE_KEY);
+    } catch {}
+    try {
+      const saved = sessionStorage.getItem(LANG_STORAGE_KEY) as Language | null;
       if (saved && LANGUAGES.some((l) => l.code === saved)) {
         setLangState(saved);
       }
     } catch {}
   }, []);
 
-  // Update dir attribute and persist
+  // Update dir attribute and remember the choice for this session
   useEffect(() => {
     const isRTL = RTL_LANGUAGES.includes(lang);
     document.documentElement.dir = isRTL ? "rtl" : "ltr";
     document.documentElement.lang = lang;
     try {
-      localStorage.setItem("nullchat-lang", lang);
+      sessionStorage.setItem(LANG_STORAGE_KEY, lang);
     } catch {}
   }, [lang]);
 
