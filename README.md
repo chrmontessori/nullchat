@@ -48,6 +48,8 @@ nullchat runs two frontends against a single WebSocket backend:
 
 The clearnet WebSocket endpoint (`wss://ws.nullchat.org`) and the Tor service are the same standalone Node.js server (`server/`), running on one host. Clearnet connections reach it through nginx; Tor connections reach it through the onion service. Tor and clearnet users connect to the same backend, so they share the same rooms and the same messages.
 
+Earlier versions ran the clearnet chat on PartyKit's hosted platform. That code was removed in October 2026, when the provider shut the platform down; nothing in production depended on it.
+
 ## Stack
 
 - **Frontend:** Next.js 16, React 19, Tailwind CSS 4
